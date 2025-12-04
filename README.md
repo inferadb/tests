@@ -20,7 +20,7 @@ End-to-end tests validating InferaDB Server and Management API in Kubernetes.
 
 ## Quick Start
 
-**Prerequisites:** Docker Desktop with Kubernetes, Rust 1.78+, `kubectl`
+**Prerequisites:** Docker Desktop with Kubernetes, Rust 1.85+, `kubectl`
 
 ```bash
 ./scripts/k8s-local-start.sh                    # Start K8s environment

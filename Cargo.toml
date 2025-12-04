@@ -2,7 +2,7 @@
 name = "inferadb-integration-tests"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.78"
+rust-version = "1.85"
 
 [dependencies]
 # HTTP client for calling APIs
@@ -19,7 +19,11 @@ serde_json = "1.0"
 uuid = { version = "1.19", features = ["v4", "serde"] }
 
 # JWT generation for tests (match server configuration)
-jsonwebtoken = { version = "10.1", default-features = false, features = ["aws_lc_rs", "ed25519-dalek", "use_pem"] }
+jsonwebtoken = { version = "10.1", default-features = false, features = [
+    "aws_lc_rs",
+    "ed25519-dalek",
+    "use_pem",
+] }
 
 # Ed25519 signing for test tokens
 ed25519-dalek = "2.2"
