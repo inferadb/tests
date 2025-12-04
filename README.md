@@ -1,8 +1,6 @@
 # InferaDB Integration Tests
 
-**End-to-end integration tests for InferaDB, validating the full stack in Kubernetes.**
-
-This repository contains comprehensive integration tests that verify InferaDB Server and Management API work correctly together in a production-like environment.
+End-to-end tests validating InferaDB Server and Management API in Kubernetes.
 
 ## What's Tested
 
@@ -19,32 +17,17 @@ This repository contains comprehensive integration tests that verify InferaDB Se
 
 ## Quick Start
 
-### Prerequisites
-
-- Docker Desktop with Kubernetes enabled
-- Rust 1.78+
-- `kubectl` configured for local cluster
-
-### Run Tests
+**Prerequisites:** Docker Desktop with Kubernetes, Rust 1.78+, `kubectl`
 
 ```bash
-# Start local Kubernetes environment
-./scripts/k8s-local-start.sh
-
-# Run all integration tests
-./scripts/k8s-local-run-integration-tests.sh
-
-# Stop environment when done
-./scripts/k8s-local-stop.sh
+./scripts/k8s-local-start.sh                    # Start K8s environment
+./scripts/k8s-local-run-integration-tests.sh    # Run tests
+./scripts/k8s-local-stop.sh                     # Stop environment
 ```
 
-### Manual Test Execution
+Run specific suites:
 
 ```bash
-# With services already running
-cargo test --test integration
-
-# Run specific test suite
 cargo test --test integration auth_jwt
 cargo test --test integration vault_isolation
 cargo test --test integration cache
@@ -75,77 +58,70 @@ tests/
 └── docker-compose.integration.yml
 ```
 
-## Scripts Reference
+## Scripts
 
-| Script                               | Description                               |
-| ------------------------------------ | ----------------------------------------- |
-| `k8s-local-start.sh`                 | Deploy InferaDB stack to local Kubernetes |
-| `k8s-local-stop.sh`                  | Stop services, preserve data              |
-| `k8s-local-purge.sh`                 | Remove all resources and data             |
-| `k8s-local-status.sh`                | Check deployment health                   |
-| `k8s-local-update.sh`                | Rebuild and redeploy images               |
-| `k8s-local-run-integration-tests.sh` | Execute full test suite                   |
+| Script                               | Purpose                       |
+| ------------------------------------ | ----------------------------- |
+| `k8s-local-start.sh`                 | Deploy stack to local K8s     |
+| `k8s-local-stop.sh`                  | Stop services, preserve data  |
+| `k8s-local-purge.sh`                 | Remove all resources and data |
+| `k8s-local-status.sh`                | Check deployment health       |
+| `k8s-local-update.sh`                | Rebuild and redeploy images   |
+| `k8s-local-run-integration-tests.sh` | Execute test suite            |
 
 ## Test Environment
 
-Tests run against services deployed in the `inferadb` namespace:
+Services in `inferadb` namespace:
 
-| Service            | URL                     | Description               |
-| ------------------ | ----------------------- | ------------------------- |
-| Server API         | `http://localhost:8080` | Authorization endpoints   |
-| Management API     | `http://localhost:8081` | Tenant/vault management   |
-| Metrics (internal) | `http://localhost:9090` | Prometheus metrics        |
-| FoundationDB       | Internal                | Cluster storage (no port) |
+| Service        | URL                     | Purpose                 |
+| -------------- | ----------------------- | ----------------------- |
+| Server API     | `http://localhost:8080` | Authorization endpoints |
+| Management API | `http://localhost:8081` | Tenant/vault management |
+| Metrics        | `http://localhost:9090` | Prometheus metrics      |
+| FoundationDB   | Internal only           | Cluster storage         |
 
 ### Environment Variables
 
-The test harness respects these environment variables:
-
-| Variable             | Default                 | Description              |
+| Variable             | Default                 | Purpose                  |
 | -------------------- | ----------------------- | ------------------------ |
 | `SERVER_API_URL`     | `http://localhost:8080` | InferaDB Server endpoint |
 | `MANAGEMENT_API_URL` | `http://localhost:8081` | Management API endpoint  |
 | `TEST_TIMEOUT_SECS`  | `30`                    | Per-test timeout         |
 
-The test harness automatically handles:
-
-- JWT token generation with Ed25519 signing
-- User registration and session management
-- Vault creation and access grants
-- Cleanup between test runs
+The harness handles JWT generation (Ed25519), user/session management, vault creation, and cleanup.
 
 ## Writing Tests
 
-Tests use the shared harness in `integration/mod.rs`:
+Tests use `TestFixture` from `integration/mod.rs`:
 
 ```rust
-use crate::{TestContext, create_test_user, create_test_vault};
+use super::*;
+use reqwest::StatusCode;
 
 #[tokio::test]
-async fn test_my_feature() -> anyhow::Result<()> {
-    let ctx = TestContext::new().await?;
+async fn test_my_feature() {
+    let fixture = TestFixture::create()
+        .await
+        .expect("Failed to create test fixture");
 
-    // Create test fixtures
-    let user = create_test_user(&ctx).await?;
-    let vault = create_test_vault(&ctx, &user).await?;
+    // Generate JWT with scopes
+    let jwt = fixture
+        .generate_jwt(None, &["inferadb.check"])
+        .expect("Failed to generate JWT");
 
-    // Test your feature
-    let token = ctx.generate_vault_jwt(&vault).await?;
-    let response = ctx.server_client()
-        .post("/v1/evaluate")
-        .bearer_auth(&token)
-        .json(&request)
-        .send()
-        .await?;
+    // Call server endpoint
+    let response = fixture
+        .call_server_evaluate(&jwt, "document:1", "viewer", "user:alice")
+        .await
+        .expect("Failed to call server");
 
-    assert_eq!(response.status(), 200);
-    Ok(())
+    assert!(response.status() == StatusCode::OK || response.status() == StatusCode::NOT_FOUND);
+
+    fixture.cleanup().await.expect("Failed to cleanup");
 }
 ```
 
-## CI/CD Integration
-
-These tests run in GitHub Actions on every PR:
+## CI/CD
 
 ```yaml
 - name: Run Integration Tests
@@ -156,53 +132,17 @@ These tests run in GitHub Actions on every PR:
 
 ## Troubleshooting
 
-### Services Not Starting
+| Issue                 | Solution                                                                                            |
+| --------------------- | --------------------------------------------------------------------------------------------------- |
+| Services not starting | `kubectl get pods -n inferadb` then `kubectl logs -n inferadb deployment/inferadb-server`           |
+| Port in use           | `lsof -i :8080 -i :8081 -i :9090` or `./scripts/k8s-local-purge.sh && ./scripts/k8s-local-start.sh` |
+| Tests timing out      | `./scripts/k8s-local-status.sh`, increase `TEST_TIMEOUT_SECS=60`, check Docker RAM (4GB+)           |
+| Connection refused    | Restart port-forwarding: `./scripts/k8s-local-start.sh`                                             |
 
-```bash
-# Check pod status
-kubectl get pods -n inferadb
+## Related
 
-# View logs for a specific service
-kubectl logs -n inferadb deployment/inferadb-server
-kubectl logs -n inferadb deployment/inferadb-management-api
-```
-
-### Port Already in Use
-
-```bash
-# Find and kill processes using test ports
-lsof -i :8080 -i :8081 -i :9090 | grep LISTEN
-kill -9 <PID>
-
-# Or purge and restart
-./scripts/k8s-local-purge.sh
-./scripts/k8s-local-start.sh
-```
-
-### Tests Timing Out
-
-1. Verify services are healthy: `./scripts/k8s-local-status.sh`
-2. Increase timeout: `TEST_TIMEOUT_SECS=60 cargo test --test integration`
-3. Check resource limits in Docker Desktop (recommend 4GB+ RAM)
-
-### Connection Refused Errors
-
-Ensure port-forwarding is active:
-
-```bash
-# Check existing port-forwards
-kubectl get pods -n inferadb -o wide
-
-# Restart port-forwarding (handled by start script)
-./scripts/k8s-local-start.sh
-```
-
-## Related Documentation
-
-- [Server Documentation](https://github.com/inferadb/server)
-- [Management API Documentation](https://github.com/inferadb/management)
-- [InferaDB Meta-Repository](https://github.com/inferadb/inferadb)
+- [Server](https://github.com/inferadb/server) | [Management API](https://github.com/inferadb/management) | [InferaDB](https://github.com/inferadb/inferadb)
 
 ## License
 
-Apache License 2.0 - See [LICENSE](LICENSE)
+Apache-2.0
