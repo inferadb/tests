@@ -6,13 +6,16 @@ This repository contains comprehensive integration tests that verify InferaDB Se
 
 ## What's Tested
 
-- **Authentication Flows**: JWT validation, Ed25519 signatures, vault-scoped tokens
-- **Vault Isolation**: Multi-tenant data separation and access control
-- **Cache Behavior**: Cache hit/miss patterns, invalidation, consistency
-- **Concurrency**: Parallel requests, race conditions, connection handling
-- **E2E Workflows**: Complete user journeys from registration to authorization
-- **Resilience**: Service recovery, timeout handling, error propagation
-- **Management Integration**: Server ↔ Management API communication
+| Category                   | Tests | Coverage                                                     |
+| -------------------------- | ----- | ------------------------------------------------------------ |
+| **Authentication**         | 7     | JWT validation, Ed25519 signatures, token expiration, scopes |
+| **Vault Isolation**        | 4     | Multi-tenant separation, cross-vault access prevention       |
+| **Cache Behavior**         | 4     | Hit/miss patterns, expiration, concurrent load               |
+| **Concurrency**            | 5     | Parallel requests, race conditions, connection handling      |
+| **E2E Workflows**          | 2     | User journeys from registration to authorization             |
+| **Management Integration** | 5     | Org suspension, client deactivation, certificate rotation    |
+| **Resilience**             | 6     | Service recovery, graceful degradation, error propagation    |
+| **Total**                  | 33    | Across 8 modules                                             |
 
 ## Quick Start
 
@@ -87,9 +90,22 @@ tests/
 
 Tests run against services deployed in the `inferadb` namespace:
 
-- **Server API**: `http://localhost:8080`
-- **Management API**: `http://localhost:8081`
-- **FoundationDB**: Internal cluster storage
+| Service            | URL                     | Description               |
+| ------------------ | ----------------------- | ------------------------- |
+| Server API         | `http://localhost:8080` | Authorization endpoints   |
+| Management API     | `http://localhost:8081` | Tenant/vault management   |
+| Metrics (internal) | `http://localhost:9090` | Prometheus metrics        |
+| FoundationDB       | Internal                | Cluster storage (no port) |
+
+### Environment Variables
+
+The test harness respects these environment variables:
+
+| Variable             | Default                 | Description              |
+| -------------------- | ----------------------- | ------------------------ |
+| `SERVER_API_URL`     | `http://localhost:8080` | InferaDB Server endpoint |
+| `MANAGEMENT_API_URL` | `http://localhost:8081` | Management API endpoint  |
+| `TEST_TIMEOUT_SECS`  | `30`                    | Per-test timeout         |
 
 The test harness automatically handles:
 
@@ -136,6 +152,49 @@ These tests run in GitHub Actions on every PR:
   run: |
     ./scripts/k8s-local-start.sh
     ./scripts/k8s-local-run-integration-tests.sh
+```
+
+## Troubleshooting
+
+### Services Not Starting
+
+```bash
+# Check pod status
+kubectl get pods -n inferadb
+
+# View logs for a specific service
+kubectl logs -n inferadb deployment/inferadb-server
+kubectl logs -n inferadb deployment/inferadb-management-api
+```
+
+### Port Already in Use
+
+```bash
+# Find and kill processes using test ports
+lsof -i :8080 -i :8081 -i :9090 | grep LISTEN
+kill -9 <PID>
+
+# Or purge and restart
+./scripts/k8s-local-purge.sh
+./scripts/k8s-local-start.sh
+```
+
+### Tests Timing Out
+
+1. Verify services are healthy: `./scripts/k8s-local-status.sh`
+2. Increase timeout: `TEST_TIMEOUT_SECS=60 cargo test --test integration`
+3. Check resource limits in Docker Desktop (recommend 4GB+ RAM)
+
+### Connection Refused Errors
+
+Ensure port-forwarding is active:
+
+```bash
+# Check existing port-forwards
+kubectl get pods -n inferadb -o wide
+
+# Restart port-forwarding (handled by start script)
+./scripts/k8s-local-start.sh
 ```
 
 ## Related Documentation
