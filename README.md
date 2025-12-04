@@ -2,6 +2,9 @@
 
 End-to-end tests validating InferaDB Server and Management API in Kubernetes.
 
+> [!IMPORTANT]
+> Under active development. Not production-ready.
+
 ## What's Tested
 
 | Category                   | Tests | Coverage                                                     |
