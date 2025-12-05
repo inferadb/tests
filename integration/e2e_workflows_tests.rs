@@ -2,9 +2,11 @@
 //
 // Tests for complete user journeys and multi-tenant scenarios
 
-use super::*;
-use base64::Engine;
 use std::collections::HashMap;
+
+use base64::Engine;
+
+use super::*;
 
 #[tokio::test]
 async fn test_complete_user_journey() {
@@ -35,10 +37,7 @@ async fn test_complete_user_journey() {
     println!("✓ User registered: {}", register_resp.user_id);
 
     // 2. Login
-    let login_req = LoginRequest {
-        email,
-        password: "SecurePassword123!".to_string(),
-    };
+    let login_req = LoginRequest { email, password: "SecurePassword123!".to_string() };
 
     let login_resp: LoginResponse = ctx
         .client
@@ -70,11 +69,7 @@ async fn test_complete_user_journey() {
         .await
         .expect("Failed to parse response");
 
-    let org_id = orgs_response
-        .organizations
-        .first()
-        .expect("No org found")
-        .id;
+    let org_id = orgs_response.organizations.first().expect("No org found").id;
     println!("✓ Organization retrieved: {}", org_id);
 
     // 4. Create vault
@@ -85,10 +80,7 @@ async fn test_complete_user_journey() {
 
     let vault_resp: CreateVaultResponse = ctx
         .client
-        .post(format!(
-            "{}/v1/organizations/{}/vaults",
-            ctx.management_url, org_id
-        ))
+        .post(format!("{}/v1/organizations/{}/vaults", ctx.management_url, org_id))
         .header("Authorization", format!("Bearer {}", session_id))
         .json(&vault_req)
         .send()
@@ -104,16 +96,11 @@ async fn test_complete_user_journey() {
     println!("✓ Vault created: {}", vault_id);
 
     // 5. Create client credentials
-    let client_req = CreateClientRequest {
-        name: format!("Journey Client {}", Uuid::new_v4()),
-    };
+    let client_req = CreateClientRequest { name: format!("Journey Client {}", Uuid::new_v4()) };
 
     let client_resp: CreateClientResponse = ctx
         .client
-        .post(format!(
-            "{}/v1/organizations/{}/clients",
-            ctx.management_url, org_id
-        ))
+        .post(format!("{}/v1/organizations/{}/clients", ctx.management_url, org_id))
         .header("Authorization", format!("Bearer {}", session_id))
         .json(&client_req)
         .send()
@@ -129,9 +116,7 @@ async fn test_complete_user_journey() {
     println!("✓ Client created: {}", client_id);
 
     // 6. Create certificate (server generates the keypair)
-    let cert_req = CreateCertificateRequest {
-        name: format!("Journey Cert {}", Uuid::new_v4()),
-    };
+    let cert_req = CreateCertificateRequest { name: format!("Journey Cert {}", Uuid::new_v4()) };
 
     let cert_resp: CertificateResponse = ctx
         .client
@@ -156,11 +141,8 @@ async fn test_complete_user_journey() {
     let private_key_bytes = base64::engine::general_purpose::STANDARD
         .decode(&cert_resp.private_key)
         .expect("Failed to decode private key");
-    let signing_key = SigningKey::from_bytes(
-        &private_key_bytes
-            .try_into()
-            .expect("Invalid private key length"),
-    );
+    let signing_key =
+        SigningKey::from_bytes(&private_key_bytes.try_into().expect("Invalid private key length"));
 
     // 7. Generate JWT
     let now = Utc::now();
@@ -205,11 +187,7 @@ async fn test_complete_user_journey() {
         .await
         .expect("Failed to write");
 
-    assert!(
-        write_resp.status().is_success(),
-        "Write failed: {}",
-        write_resp.status()
-    );
+    assert!(write_resp.status().is_success(), "Write failed: {}", write_resp.status());
     println!("✓ Relationship written via server");
 
     // 9. Evaluate policies via server
@@ -230,11 +208,7 @@ async fn test_complete_user_journey() {
         .await
         .expect("Failed to evaluate");
 
-    assert!(
-        eval_resp.status().is_success(),
-        "Evaluate failed: {}",
-        eval_resp.status()
-    );
+    assert!(eval_resp.status().is_success(), "Evaluate failed: {}", eval_resp.status());
     println!("✓ Policy evaluated via server");
 
     println!("✅ Complete user journey successful");
@@ -243,15 +217,9 @@ async fn test_complete_user_journey() {
 #[tokio::test]
 async fn test_multi_tenant_isolation() {
     // Create 3 separate tenant environments
-    let fixture1 = TestFixture::create()
-        .await
-        .expect("Failed to create fixture 1");
-    let fixture2 = TestFixture::create()
-        .await
-        .expect("Failed to create fixture 2");
-    let fixture3 = TestFixture::create()
-        .await
-        .expect("Failed to create fixture 3");
+    let fixture1 = TestFixture::create().await.expect("Failed to create fixture 1");
+    let fixture2 = TestFixture::create().await.expect("Failed to create fixture 2");
+    let fixture3 = TestFixture::create().await.expect("Failed to create fixture 3");
 
     println!("✓ Created 3 isolated tenants");
 
@@ -355,10 +323,7 @@ async fn test_multi_tenant_isolation() {
         .expect("Failed to query");
 
     // Should return false/empty (no cross-contamination)
-    assert!(
-        response1.status().is_success(),
-        "Query should succeed but return isolated results"
-    );
+    assert!(response1.status().is_success(), "Query should succeed but return isolated results");
     println!("✓ Cross-tenant isolation verified");
 
     // Cleanup

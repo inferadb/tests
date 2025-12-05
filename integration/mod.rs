@@ -8,7 +8,7 @@ use anyhow::{Context, Result};
 use base64::Engine;
 use chrono::{Duration, Utc};
 use ed25519_dalek::{SigningKey, VerifyingKey};
-use jsonwebtoken::{encode, Algorithm, EncodingKey, Header};
+use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
 use rand::RngCore;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -159,7 +159,8 @@ pub struct OrganizationResponse {
 #[derive(Debug, Deserialize)]
 pub struct ListOrganizationsResponse {
     pub organizations: Vec<OrganizationResponse>,
-    pub pagination: Option<serde_json::Value>, // We don't need to parse pagination metadata for tests
+    pub pagination: Option<serde_json::Value>, /* We don't need to parse pagination metadata for
+                                                * tests */
 }
 
 /// Vault creation request
@@ -309,25 +310,18 @@ impl TestFixture {
 
         let status = response.status();
         if !status.is_success() {
-            let error_body = response
-                .text()
-                .await
-                .unwrap_or_else(|_| "Unable to read error body".to_string());
+            let error_body =
+                response.text().await.unwrap_or_else(|_| "Unable to read error body".to_string());
             anyhow::bail!("Registration failed with status {}: {}", status, error_body);
         }
 
-        let register_resp: RegisterResponse = response
-            .json()
-            .await
-            .context("Failed to parse registration response")?;
+        let register_resp: RegisterResponse =
+            response.json().await.context("Failed to parse registration response")?;
 
         let user_id = register_resp.user_id;
 
         // Login to get session
-        let login_req = LoginRequest {
-            email,
-            password: "SecurePassword123!".to_string(),
-        };
+        let login_req = LoginRequest { email, password: "SecurePassword123!".to_string() };
 
         let login_response = ctx
             .client
@@ -346,10 +340,8 @@ impl TestFixture {
             anyhow::bail!("Login failed with status {}: {}", login_status, error_body);
         }
 
-        let login_resp: LoginResponse = login_response
-            .json()
-            .await
-            .context("Failed to parse login response")?;
+        let login_resp: LoginResponse =
+            login_response.json().await.context("Failed to parse login response")?;
 
         let session_id = login_resp.session_id;
 
@@ -367,11 +359,8 @@ impl TestFixture {
             .await
             .context("Failed to parse organizations response")?;
 
-        let org_id = orgs_response
-            .organizations
-            .first()
-            .context("No default organization found")?
-            .id;
+        let org_id =
+            orgs_response.organizations.first().context("No default organization found")?.id;
 
         // Create vault
         let vault_req = CreateVaultRequest {
@@ -381,10 +370,7 @@ impl TestFixture {
 
         let create_vault_resp: CreateVaultResponse = ctx
             .client
-            .post(format!(
-                "{}/v1/organizations/{}/vaults",
-                ctx.management_url, org_id
-            ))
+            .post(format!("{}/v1/organizations/{}/vaults", ctx.management_url, org_id))
             .header("Authorization", format!("Bearer {}", session_id))
             .json(&vault_req)
             .send()
@@ -399,16 +385,11 @@ impl TestFixture {
         let vault_id = create_vault_resp.vault.id;
 
         // Create client
-        let client_req = CreateClientRequest {
-            name: format!("Test Client {}", Uuid::new_v4()),
-        };
+        let client_req = CreateClientRequest { name: format!("Test Client {}", Uuid::new_v4()) };
 
         let create_client_resp: CreateClientResponse = ctx
             .client
-            .post(format!(
-                "{}/v1/organizations/{}/clients",
-                ctx.management_url, org_id
-            ))
+            .post(format!("{}/v1/organizations/{}/clients", ctx.management_url, org_id))
             .header("Authorization", format!("Bearer {}", session_id))
             .json(&client_req)
             .send()
@@ -423,9 +404,8 @@ impl TestFixture {
         let client_id = create_client_resp.client.id;
 
         // Create certificate (server generates the keypair)
-        let cert_req = CreateCertificateRequest {
-            name: format!("Test Certificate {}", Uuid::new_v4()),
-        };
+        let cert_req =
+            CreateCertificateRequest { name: format!("Test Certificate {}", Uuid::new_v4()) };
 
         let cert_resp: CertificateResponse = ctx
             .client
@@ -609,10 +589,7 @@ impl TestFixture {
         let _ = self
             .ctx
             .client
-            .delete(format!(
-                "{}/v1/organizations/{}",
-                self.ctx.management_url, self.org_id
-            ))
+            .delete(format!("{}/v1/organizations/{}", self.ctx.management_url, self.org_id))
             .header("Authorization", format!("Bearer {}", self.session_id))
             .send()
             .await;
@@ -621,10 +598,7 @@ impl TestFixture {
         let _ = self
             .ctx
             .client
-            .delete(format!(
-                "{}/v1/users/{}",
-                self.ctx.management_url, self.user_id
-            ))
+            .delete(format!("{}/v1/users/{}", self.ctx.management_url, self.user_id))
             .header("Authorization", format!("Bearer {}", self.session_id))
             .send()
             .await;

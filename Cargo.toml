@@ -1,12 +1,12 @@
 [package]
-name = "inferadb-integration-tests"
-version = "0.1.0"
 edition = "2021"
+name = "inferadb-integration-tests"
 rust-version = "1.85"
+version = "0.1.0"
 
 [dependencies]
 # HTTP client for calling APIs
-reqwest = { version = "0.12", features = ["json", "cookies"] }
+reqwest = { version = "0.12", features = ["cookies", "json"] }
 
 # Async runtime
 tokio = { version = "1.48", features = ["full"] }
@@ -16,13 +16,13 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
 # UUID support
-uuid = { version = "1.19", features = ["v4", "serde"] }
+uuid = { version = "1.19", features = ["serde", "v4"] }
 
 # JWT generation for tests (match server configuration)
 jsonwebtoken = { version = "10.1", default-features = false, features = [
-    "aws_lc_rs",
-    "ed25519-dalek",
-    "use_pem",
+  "aws_lc_rs",
+  "ed25519-dalek",
+  "use_pem",
 ] }
 
 # Ed25519 signing for test tokens
@@ -45,6 +45,6 @@ assert_matches = "1.5"
 # No additional dev dependencies needed
 
 [[test]]
+harness = true
 name = "integration"
 path = "integration/mod.rs"
-harness = true

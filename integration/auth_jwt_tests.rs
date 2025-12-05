@@ -2,19 +2,16 @@
 //
 // Tests for validating JWT-based authentication between server and management API
 
-use super::*;
 use reqwest::StatusCode;
+
+use super::*;
 
 #[tokio::test]
 async fn test_valid_jwt_from_management_client() {
-    let fixture = TestFixture::create()
-        .await
-        .expect("Failed to create test fixture");
+    let fixture = TestFixture::create().await.expect("Failed to create test fixture");
 
     // Generate valid JWT
-    let jwt = fixture
-        .generate_jwt(None, &["inferadb.check"])
-        .expect("Failed to generate JWT");
+    let jwt = fixture.generate_jwt(None, &["inferadb.check"]).expect("Failed to generate JWT");
 
     // Call server with valid JWT
     let response = fixture
@@ -34,14 +31,10 @@ async fn test_valid_jwt_from_management_client() {
 
 #[tokio::test]
 async fn test_jwt_with_invalid_signature() {
-    let fixture = TestFixture::create()
-        .await
-        .expect("Failed to create test fixture");
+    let fixture = TestFixture::create().await.expect("Failed to create test fixture");
 
     // Generate JWT with wrong signing key
-    let jwt = fixture
-        .generate_invalid_jwt()
-        .expect("Failed to generate invalid JWT");
+    let jwt = fixture.generate_invalid_jwt().expect("Failed to generate invalid JWT");
 
     // Call server with invalid JWT
     let response = fixture
@@ -61,9 +54,7 @@ async fn test_jwt_with_invalid_signature() {
 
 #[tokio::test]
 async fn test_jwt_for_nonexistent_vault() {
-    let fixture = TestFixture::create()
-        .await
-        .expect("Failed to create test fixture");
+    let fixture = TestFixture::create().await.expect("Failed to create test fixture");
 
     // Generate JWT with fake vault UUID
     let fake_vault_id: i64 = 999999999; // Fake Snowflake ID
@@ -90,12 +81,8 @@ async fn test_jwt_for_nonexistent_vault() {
 #[tokio::test]
 async fn test_jwt_for_vault_in_different_org() {
     // Create two separate test fixtures (two different orgs)
-    let fixture1 = TestFixture::create()
-        .await
-        .expect("Failed to create first fixture");
-    let fixture2 = TestFixture::create()
-        .await
-        .expect("Failed to create second fixture");
+    let fixture1 = TestFixture::create().await.expect("Failed to create first fixture");
+    let fixture2 = TestFixture::create().await.expect("Failed to create second fixture");
 
     // Try to use client from org A (fixture1) with vault from org B (fixture2)
     let jwt_with_wrong_vault = fixture1
@@ -115,26 +102,16 @@ async fn test_jwt_for_vault_in_different_org() {
         "Expected 403 Forbidden for cross-org vault access"
     );
 
-    fixture1
-        .cleanup()
-        .await
-        .expect("Failed to cleanup fixture1");
-    fixture2
-        .cleanup()
-        .await
-        .expect("Failed to cleanup fixture2");
+    fixture1.cleanup().await.expect("Failed to cleanup fixture1");
+    fixture2.cleanup().await.expect("Failed to cleanup fixture2");
 }
 
 #[tokio::test]
 async fn test_jwt_with_missing_required_scope() {
-    let fixture = TestFixture::create()
-        .await
-        .expect("Failed to create test fixture");
+    let fixture = TestFixture::create().await.expect("Failed to create test fixture");
 
     // Generate JWT without required scopes
-    let jwt = fixture
-        .generate_jwt(None, &[])
-        .expect("Failed to generate JWT");
+    let jwt = fixture.generate_jwt(None, &[]).expect("Failed to generate JWT");
 
     // Call server with insufficient scopes
     let response = fixture
@@ -157,9 +134,7 @@ async fn test_jwt_with_missing_required_scope() {
 
 #[tokio::test]
 async fn test_jwt_with_expired_token() {
-    let fixture = TestFixture::create()
-        .await
-        .expect("Failed to create test fixture");
+    let fixture = TestFixture::create().await.expect("Failed to create test fixture");
 
     // Generate JWT with past expiration (requires custom encoding)
     let now = Utc::now();
@@ -202,9 +177,7 @@ async fn test_jwt_with_expired_token() {
 
 #[tokio::test]
 async fn test_jwt_with_invalid_kid() {
-    let fixture = TestFixture::create()
-        .await
-        .expect("Failed to create test fixture");
+    let fixture = TestFixture::create().await.expect("Failed to create test fixture");
 
     // Generate JWT with fake kid
     let now = Utc::now();
@@ -223,10 +196,8 @@ async fn test_jwt_with_invalid_kid() {
 
     let mut header = Header::new(Algorithm::EdDSA);
     // Use fake Snowflake IDs for invalid kid test
-    header.kid = Some(format!(
-        "org-{}-client-{}-cert-{}",
-        999999999i64, 888888888i64, 777777777i64
-    ));
+    header.kid =
+        Some(format!("org-{}-client-{}-cert-{}", 999999999i64, 888888888i64, 777777777i64));
 
     let secret_bytes = fixture.signing_key.to_bytes();
     let pem = ed25519_to_pem(&secret_bytes);

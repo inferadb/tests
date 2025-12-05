@@ -2,20 +2,18 @@
 //
 // Tests for validating caching behavior and performance
 
-use super::*;
-use reqwest::StatusCode;
 use std::time::Instant;
+
+use reqwest::StatusCode;
+
+use super::*;
 
 #[tokio::test]
 async fn test_certificate_cache_hit_rate() {
-    let fixture = TestFixture::create()
-        .await
-        .expect("Failed to create test fixture");
+    let fixture = TestFixture::create().await.expect("Failed to create test fixture");
 
     // Generate JWT
-    let jwt = fixture
-        .generate_jwt(None, &["inferadb.check"])
-        .expect("Failed to generate JWT");
+    let jwt = fixture.generate_jwt(None, &["inferadb.check"]).expect("Failed to generate JWT");
 
     // Make 100 requests with the same JWT
     let iterations = 100;
@@ -53,12 +51,8 @@ async fn test_certificate_cache_hit_rate() {
     }
 
     // Check if we can get metrics from server (metrics are on internal port 9090)
-    let metrics_response = fixture
-        .ctx
-        .client
-        .get(format!("{}/metrics", fixture.ctx.server_internal_url))
-        .send()
-        .await;
+    let metrics_response =
+        fixture.ctx.client.get(format!("{}/metrics", fixture.ctx.server_internal_url)).send().await;
 
     if let Ok(resp) = metrics_response {
         if resp.status().is_success() {
@@ -111,14 +105,10 @@ async fn test_certificate_cache_hit_rate() {
 
 #[tokio::test]
 async fn test_vault_verification_cache() {
-    let fixture = TestFixture::create()
-        .await
-        .expect("Failed to create test fixture");
+    let fixture = TestFixture::create().await.expect("Failed to create test fixture");
 
     // Generate JWT
-    let jwt = fixture
-        .generate_jwt(None, &["inferadb.check"])
-        .expect("Failed to generate JWT");
+    let jwt = fixture.generate_jwt(None, &["inferadb.check"]).expect("Failed to generate JWT");
 
     // First request - should hit management API (cache miss)
     let start_first = Instant::now();
@@ -154,17 +144,12 @@ async fn test_vault_verification_cache() {
         );
     }
 
-    let avg_cached_latency = cached_latencies
-        .iter()
-        .sum::<std::time::Duration>()
-        .as_micros() as f64
+    let avg_cached_latency = cached_latencies.iter().sum::<std::time::Duration>().as_micros()
+        as f64
         / cached_latencies.len() as f64
         / 1000.0; // Convert to ms
 
-    println!(
-        "✓ Average cached request latency: {:.2}ms",
-        avg_cached_latency
-    );
+    println!("✓ Average cached request latency: {:.2}ms", avg_cached_latency);
 
     // Cached requests should be significantly faster
     // This is a soft assertion as it depends on infrastructure
@@ -181,17 +166,13 @@ async fn test_vault_verification_cache() {
 
 #[tokio::test]
 async fn test_management_api_call_rate() {
-    let fixture = TestFixture::create()
-        .await
-        .expect("Failed to create test fixture");
+    let fixture = TestFixture::create().await.expect("Failed to create test fixture");
 
     // Get baseline metrics
     let initial_metrics = get_auth_metrics(&fixture.ctx).await;
 
     // Generate JWT
-    let jwt = fixture
-        .generate_jwt(None, &["inferadb.check"])
-        .expect("Failed to generate JWT");
+    let jwt = fixture.generate_jwt(None, &["inferadb.check"]).expect("Failed to generate JWT");
 
     // Make 50 requests
     let num_requests = 50;
@@ -236,14 +217,10 @@ async fn test_management_api_call_rate() {
 
 #[tokio::test]
 async fn test_cache_expiration_behavior() {
-    let fixture = TestFixture::create()
-        .await
-        .expect("Failed to create test fixture");
+    let fixture = TestFixture::create().await.expect("Failed to create test fixture");
 
     // Generate JWT
-    let jwt = fixture
-        .generate_jwt(None, &["inferadb.check"])
-        .expect("Failed to generate JWT");
+    let jwt = fixture.generate_jwt(None, &["inferadb.check"]).expect("Failed to generate JWT");
 
     // First request to populate cache
     let response1 = fixture
@@ -288,12 +265,8 @@ struct AuthMetrics {
 
 // Helper function to fetch and parse auth metrics (from internal port)
 async fn get_auth_metrics(ctx: &TestContext) -> Option<AuthMetrics> {
-    let response = ctx
-        .client
-        .get(format!("{}/metrics", ctx.server_internal_url))
-        .send()
-        .await
-        .ok()?;
+    let response =
+        ctx.client.get(format!("{}/metrics", ctx.server_internal_url)).send().await.ok()?;
 
     if !response.status().is_success() {
         return None;
@@ -306,11 +279,7 @@ async fn get_auth_metrics(ctx: &TestContext) -> Option<AuthMetrics> {
     let cache_hits = parse_metric(&metrics_text, "infera_auth_cache_hits_total");
     let cache_misses = parse_metric(&metrics_text, "infera_auth_cache_misses_total");
 
-    Some(AuthMetrics {
-        management_api_calls,
-        cache_hits,
-        cache_misses,
-    })
+    Some(AuthMetrics { management_api_calls, cache_hits, cache_misses })
 }
 
 // Helper function to parse a metric value from Prometheus format

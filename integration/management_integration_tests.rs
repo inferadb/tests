@@ -2,20 +2,17 @@
 //
 // Tests for validating integration between server and management API
 
-use super::*;
 use base64::Engine;
 use reqwest::StatusCode;
 
+use super::*;
+
 #[tokio::test]
 async fn test_organization_status_check() {
-    let fixture = TestFixture::create()
-        .await
-        .expect("Failed to create test fixture");
+    let fixture = TestFixture::create().await.expect("Failed to create test fixture");
 
     // Generate valid JWT
-    let jwt = fixture
-        .generate_jwt(None, &["inferadb.check"])
-        .expect("Failed to generate JWT");
+    let jwt = fixture.generate_jwt(None, &["inferadb.check"]).expect("Failed to generate JWT");
 
     // Verify JWT works initially
     let initial_response = fixture
@@ -33,10 +30,7 @@ async fn test_organization_status_check() {
     let suspend_response = fixture
         .ctx
         .client
-        .post(format!(
-            "{}/v1/organizations/{}/suspend",
-            fixture.ctx.management_url, fixture.org_id
-        ))
+        .post(format!("{}/v1/organizations/{}/suspend", fixture.ctx.management_url, fixture.org_id))
         .header("Authorization", format!("Bearer {}", fixture.session_id))
         .send()
         .await
@@ -87,14 +81,10 @@ async fn test_organization_status_check() {
 
 #[tokio::test]
 async fn test_vault_deletion_propagation() {
-    let fixture = TestFixture::create()
-        .await
-        .expect("Failed to create test fixture");
+    let fixture = TestFixture::create().await.expect("Failed to create test fixture");
 
     // Write some data to the vault
-    let jwt = fixture
-        .generate_jwt(None, &["inferadb.write"])
-        .expect("Failed to generate JWT");
+    let jwt = fixture.generate_jwt(None, &["inferadb.write"]).expect("Failed to generate JWT");
 
     let mut relationship = std::collections::HashMap::new();
     relationship.insert("resource", "document:important");
@@ -165,9 +155,7 @@ async fn test_vault_deletion_propagation() {
 
 #[tokio::test]
 async fn test_certificate_rotation() {
-    let fixture = TestFixture::create()
-        .await
-        .expect("Failed to create test fixture");
+    let fixture = TestFixture::create().await.expect("Failed to create test fixture");
 
     // Generate JWT with original certificate
     let jwt_old = fixture
@@ -186,9 +174,8 @@ async fn test_certificate_rotation() {
     );
 
     // Create a new certificate (rotation) - server generates the keypair
-    let new_cert_req = CreateCertificateRequest {
-        name: format!("Rotated Certificate {}", Uuid::new_v4()),
-    };
+    let new_cert_req =
+        CreateCertificateRequest { name: format!("Rotated Certificate {}", Uuid::new_v4()) };
 
     let new_cert_resp: CertificateResponse = fixture
         .ctx
@@ -213,9 +200,7 @@ async fn test_certificate_rotation() {
         .decode(&new_cert_resp.private_key)
         .expect("Failed to decode new private key");
     let new_signing_key = SigningKey::from_bytes(
-        &new_private_key_bytes
-            .try_into()
-            .expect("Invalid private key length"),
+        &new_private_key_bytes.try_into().expect("Invalid private key length"),
     );
 
     // Generate JWT with new certificate
@@ -297,14 +282,10 @@ async fn test_certificate_rotation() {
 
 #[tokio::test]
 async fn test_client_deactivation() {
-    let fixture = TestFixture::create()
-        .await
-        .expect("Failed to create test fixture");
+    let fixture = TestFixture::create().await.expect("Failed to create test fixture");
 
     // Generate valid JWT
-    let jwt = fixture
-        .generate_jwt(None, &["inferadb.check"])
-        .expect("Failed to generate JWT");
+    let jwt = fixture.generate_jwt(None, &["inferadb.check"]).expect("Failed to generate JWT");
 
     // Verify JWT works initially
     let initial_response = fixture
@@ -378,14 +359,10 @@ async fn test_client_deactivation() {
 
 #[tokio::test]
 async fn test_certificate_revocation() {
-    let fixture = TestFixture::create()
-        .await
-        .expect("Failed to create test fixture");
+    let fixture = TestFixture::create().await.expect("Failed to create test fixture");
 
     // Generate valid JWT
-    let jwt = fixture
-        .generate_jwt(None, &["inferadb.check"])
-        .expect("Failed to generate JWT");
+    let jwt = fixture.generate_jwt(None, &["inferadb.check"]).expect("Failed to generate JWT");
 
     // Verify JWT works initially
     let initial_response = fixture

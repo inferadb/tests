@@ -2,19 +2,16 @@
 //
 // Tests for validating server resilience when management API is unavailable
 
-use super::*;
 use reqwest::StatusCode;
+
+use super::*;
 
 #[tokio::test]
 async fn test_cached_data_allows_validation() {
-    let fixture = TestFixture::create()
-        .await
-        .expect("Failed to create test fixture");
+    let fixture = TestFixture::create().await.expect("Failed to create test fixture");
 
     // Generate JWT
-    let jwt = fixture
-        .generate_jwt(None, &["inferadb.check"])
-        .expect("Failed to generate JWT");
+    let jwt = fixture.generate_jwt(None, &["inferadb.check"]).expect("Failed to generate JWT");
 
     // First request to populate cache
     let initial_response = fixture
@@ -58,9 +55,7 @@ async fn test_cached_data_allows_validation() {
 
 #[tokio::test]
 async fn test_graceful_degradation_with_network_timeout() {
-    let fixture = TestFixture::create()
-        .await
-        .expect("Failed to create test fixture");
+    let fixture = TestFixture::create().await.expect("Failed to create test fixture");
 
     // Create a JWT with a non-existent kid (will cause management API lookup)
     let now = Utc::now();
@@ -79,10 +74,8 @@ async fn test_graceful_degradation_with_network_timeout() {
 
     let mut header = Header::new(Algorithm::EdDSA);
     // Use a kid that doesn't exist but has valid format (fake cert Snowflake ID)
-    header.kid = Some(format!(
-        "org-{}-client-{}-cert-{}",
-        fixture.org_id, fixture.client_id, 999999999i64
-    ));
+    header.kid =
+        Some(format!("org-{}-client-{}-cert-{}", fixture.org_id, fixture.client_id, 999999999i64));
 
     let secret_bytes = fixture.signing_key.to_bytes();
     let pem = ed25519_to_pem(&secret_bytes);
@@ -107,14 +100,10 @@ async fn test_graceful_degradation_with_network_timeout() {
 
 #[tokio::test]
 async fn test_server_continues_with_cached_certificates() {
-    let fixture = TestFixture::create()
-        .await
-        .expect("Failed to create test fixture");
+    let fixture = TestFixture::create().await.expect("Failed to create test fixture");
 
     // Generate valid JWT
-    let jwt = fixture
-        .generate_jwt(None, &["inferadb.check"])
-        .expect("Failed to generate JWT");
+    let jwt = fixture.generate_jwt(None, &["inferadb.check"]).expect("Failed to generate JWT");
 
     // Make initial request to cache the certificate
     let response1 = fixture
@@ -151,14 +140,10 @@ async fn test_server_continues_with_cached_certificates() {
 #[tokio::test]
 async fn test_partial_cache_coverage() {
     // Test scenario where some data is cached and some requires API calls
-    let fixture = TestFixture::create()
-        .await
-        .expect("Failed to create test fixture");
+    let fixture = TestFixture::create().await.expect("Failed to create test fixture");
 
     // Generate JWT with original vault (will be cached)
-    let jwt1 = fixture
-        .generate_jwt(None, &["inferadb.check"])
-        .expect("Failed to generate JWT");
+    let jwt1 = fixture.generate_jwt(None, &["inferadb.check"]).expect("Failed to generate JWT");
 
     // First request to cache certificate and vault
     let response1 = fixture
@@ -181,10 +166,7 @@ async fn test_partial_cache_coverage() {
     let vault2_response: CreateVaultResponse = fixture
         .ctx
         .client
-        .post(format!(
-            "{}/v1/organizations/{}/vaults",
-            fixture.ctx.management_url, fixture.org_id
-        ))
+        .post(format!("{}/v1/organizations/{}/vaults", fixture.ctx.management_url, fixture.org_id))
         .header("Authorization", format!("Bearer {}", fixture.session_id))
         .json(&vault2_req)
         .send()
@@ -232,9 +214,7 @@ async fn test_partial_cache_coverage() {
 
 #[tokio::test]
 async fn test_error_handling_for_invalid_responses() {
-    let fixture = TestFixture::create()
-        .await
-        .expect("Failed to create test fixture");
+    let fixture = TestFixture::create().await.expect("Failed to create test fixture");
 
     // Test with malformed JWT (no kid)
     let now = Utc::now();
@@ -265,11 +245,7 @@ async fn test_error_handling_for_invalid_responses() {
         .expect("Failed to call server");
 
     // Should fail gracefully with 401
-    assert_eq!(
-        response.status(),
-        StatusCode::UNAUTHORIZED,
-        "Expected 401 for JWT without kid"
-    );
+    assert_eq!(response.status(), StatusCode::UNAUTHORIZED, "Expected 401 for JWT without kid");
     println!("✓ Server handled malformed JWT gracefully");
 
     fixture.cleanup().await.expect("Failed to cleanup");
@@ -277,14 +253,10 @@ async fn test_error_handling_for_invalid_responses() {
 
 #[tokio::test]
 async fn test_concurrent_requests_with_mixed_cache_states() {
-    let fixture = TestFixture::create()
-        .await
-        .expect("Failed to create test fixture");
+    let fixture = TestFixture::create().await.expect("Failed to create test fixture");
 
     // Generate JWT
-    let jwt = fixture
-        .generate_jwt(None, &["inferadb.check"])
-        .expect("Failed to generate JWT");
+    let jwt = fixture.generate_jwt(None, &["inferadb.check"]).expect("Failed to generate JWT");
 
     // Launch 20 concurrent requests
     let mut handles = Vec::new();

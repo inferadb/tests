@@ -2,15 +2,15 @@
 //
 // Tests for validating vault isolation guarantees
 
-use super::*;
-use reqwest::StatusCode;
 use std::collections::HashMap;
+
+use reqwest::StatusCode;
+
+use super::*;
 
 #[tokio::test]
 async fn test_cross_vault_read_protection() {
-    let fixture = TestFixture::create()
-        .await
-        .expect("Failed to create test fixture");
+    let fixture = TestFixture::create().await.expect("Failed to create test fixture");
 
     // Create a second vault in the same organization
     let vault_req = CreateVaultRequest {
@@ -21,10 +21,7 @@ async fn test_cross_vault_read_protection() {
     let vault_b_response: CreateVaultResponse = fixture
         .ctx
         .client
-        .post(format!(
-            "{}/v1/organizations/{}/vaults",
-            fixture.ctx.management_url, fixture.org_id
-        ))
+        .post(format!("{}/v1/organizations/{}/vaults", fixture.ctx.management_url, fixture.org_id))
         .header("Authorization", format!("Bearer {}", fixture.session_id))
         .json(&vault_req)
         .send()
@@ -112,12 +109,8 @@ async fn test_cross_vault_read_protection() {
 #[tokio::test]
 async fn test_cross_org_isolation() {
     // Create two separate test fixtures (two different orgs)
-    let fixture_a = TestFixture::create()
-        .await
-        .expect("Failed to create fixture A");
-    let fixture_b = TestFixture::create()
-        .await
-        .expect("Failed to create fixture B");
+    let fixture_a = TestFixture::create().await.expect("Failed to create fixture A");
+    let fixture_b = TestFixture::create().await.expect("Failed to create fixture B");
 
     // Write data to org A's vault
     let jwt_a = fixture_a
@@ -134,20 +127,14 @@ async fn test_cross_org_isolation() {
     let write_response = fixture_a
         .ctx
         .client
-        .post(format!(
-            "{}/v1/relationships/write",
-            fixture_a.ctx.server_url
-        ))
+        .post(format!("{}/v1/relationships/write", fixture_a.ctx.server_url))
         .header("Authorization", format!("Bearer {}", jwt_a))
         .json(&write_body)
         .send()
         .await
         .expect("Failed to write to org A");
 
-    assert!(
-        write_response.status().is_success(),
-        "Failed to write to org A"
-    );
+    assert!(write_response.status().is_success(), "Failed to write to org A");
 
     // Try to read org A's data with org B's credentials
     let jwt_b = fixture_b
@@ -172,10 +159,7 @@ async fn test_cross_org_isolation() {
         .expect("Failed to query");
 
     // Should succeed but return isolated results (false or empty)
-    assert!(
-        read_response.status().is_success(),
-        "Query should succeed with isolated results"
-    );
+    assert!(read_response.status().is_success(), "Query should succeed with isolated results");
 
     fixture_a.cleanup().await.expect("Failed to cleanup A");
     fixture_b.cleanup().await.expect("Failed to cleanup B");
@@ -183,9 +167,7 @@ async fn test_cross_org_isolation() {
 
 #[tokio::test]
 async fn test_account_ownership_validation() {
-    let fixture = TestFixture::create()
-        .await
-        .expect("Failed to create test fixture");
+    let fixture = TestFixture::create().await.expect("Failed to create test fixture");
 
     // Generate JWT with wrong account ID in claims
     let fake_organization_id: i64 = 888888888; // Fake Snowflake ID
@@ -229,14 +211,10 @@ async fn test_account_ownership_validation() {
 
 #[tokio::test]
 async fn test_vault_deletion_prevents_access() {
-    let fixture = TestFixture::create()
-        .await
-        .expect("Failed to create test fixture");
+    let fixture = TestFixture::create().await.expect("Failed to create test fixture");
 
     // Generate valid JWT before deletion
-    let jwt = fixture
-        .generate_jwt(None, &["inferadb.check"])
-        .expect("Failed to generate JWT");
+    let jwt = fixture.generate_jwt(None, &["inferadb.check"]).expect("Failed to generate JWT");
 
     // Verify JWT works initially
     let initial_response = fixture
@@ -276,8 +254,7 @@ async fn test_vault_deletion_prevents_access() {
             .await
             .expect("Failed to call server");
 
-        if response.status() == StatusCode::FORBIDDEN
-            || response.status() == StatusCode::NOT_FOUND
+        if response.status() == StatusCode::FORBIDDEN || response.status() == StatusCode::NOT_FOUND
         {
             println!(
                 "✓ Vault deletion took effect after {} attempts ({:.1}s)",
@@ -292,9 +269,7 @@ async fn test_vault_deletion_prevents_access() {
     if !invalidated {
         // After 5 seconds, if still not invalidated, it's informational
         // Multi-pod deployments may have timing issues with webhook propagation
-        println!(
-            "✓ Vault deletion test completed - cache invalidation may still be propagating"
-        );
+        println!("✓ Vault deletion test completed - cache invalidation may still be propagating");
     }
 
     // Cleanup remaining resources (vault already deleted)

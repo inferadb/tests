@@ -95,13 +95,13 @@ async fn test_vault_isolation() {
 
 ### Test Fixture Methods
 
-| Method                  | Purpose                             |
-| ----------------------- | ----------------------------------- |
-| `create()`              | Initialize test context             |
-| `generate_jwt()`        | Create Ed25519-signed JWT           |
-| `call_server_evaluate()`| Call /v1/check endpoint             |
-| `call_management_api()` | Call Management API                 |
-| `cleanup()`             | Teardown test resources             |
+| Method                   | Purpose                   |
+| ------------------------ | ------------------------- |
+| `create()`               | Initialize test context   |
+| `generate_jwt()`         | Create Ed25519-signed JWT |
+| `call_server_evaluate()` | Call /v1/check endpoint   |
+| `call_management_api()`  | Call Management API       |
+| `cleanup()`              | Teardown test resources   |
 
 ## Critical Patterns
 
@@ -145,22 +145,22 @@ fixture.cleanup().await.expect("cleanup failed");
 
 ## Scripts
 
-| Script                               | Purpose                     |
-| ------------------------------------ | --------------------------- |
-| `scripts/k8s-local-start.sh`         | Deploy stack to local K8s   |
-| `scripts/k8s-local-stop.sh`          | Stop services, preserve data|
-| `scripts/k8s-local-purge.sh`         | Remove all resources        |
-| `scripts/k8s-local-status.sh`        | Check deployment health     |
-| `scripts/k8s-local-run-integration-tests.sh` | Execute test suite |
+| Script                                       | Purpose                      |
+| -------------------------------------------- | ---------------------------- |
+| `scripts/k8s-local-start.sh`                 | Deploy stack to local K8s    |
+| `scripts/k8s-local-stop.sh`                  | Stop services, preserve data |
+| `scripts/k8s-local-purge.sh`                 | Remove all resources         |
+| `scripts/k8s-local-status.sh`                | Check deployment health      |
+| `scripts/k8s-local-run-integration-tests.sh` | Execute test suite           |
 
 ## Troubleshooting
 
-| Issue                 | Solution                                                      |
-| --------------------- | ------------------------------------------------------------- |
+| Issue                 | Solution                                                                              |
+| --------------------- | ------------------------------------------------------------------------------------- |
 | Services not starting | `kubectl get pods -n inferadb && kubectl logs -n inferadb deployment/inferadb-server` |
-| Port conflicts        | `lsof -i :8080 -i :8081` or `make purge && make start`        |
-| Tests timing out      | Increase `TEST_TIMEOUT_SECS`, check Docker RAM (4GB+)         |
-| Connection refused    | Restart port-forwarding: `make start`                         |
+| Port conflicts        | `lsof -i :8080 -i :8081` or `make purge && make start`                                |
+| Tests timing out      | Increase `TEST_TIMEOUT_SECS`, check Docker RAM (4GB+)                                 |
+| Connection refused    | Restart port-forwarding: `make start`                                                 |
 
 ## Code Quality
 

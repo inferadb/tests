@@ -1,6 +1,6 @@
 # InferaDB Integration Tests
 
-**End-to-end test suite** — validates Server and Management API in Kubernetes.
+**E2E test suite** — validates Server and Management API in Kubernetes.
 
 > [!IMPORTANT]
 > Under active development. Not production-ready.
@@ -45,11 +45,11 @@ cargo test --test integration cache
 
 ## Environment
 
-| Service    | URL                     | Purpose           |
-| ---------- | ----------------------- | ----------------- |
-| Server     | `http://localhost:8080` | Authorization API |
-| Management | `http://localhost:8081` | Control plane     |
-| Metrics    | `http://localhost:9090` | Prometheus        |
+| Service    | URL                     |
+| ---------- | ----------------------- |
+| Server     | `http://localhost:8080` |
+| Management | `http://localhost:8081` |
+| Metrics    | `http://localhost:9090` |
 
 | Variable             | Default                 | Purpose             |
 | -------------------- | ----------------------- | ------------------- |
@@ -63,8 +63,8 @@ cargo test --test integration cache
 #[tokio::test]
 async fn test_my_feature() {
     let fixture = TestFixture::create().await.unwrap();
-
     let jwt = fixture.generate_jwt(None, &["inferadb.check"]).unwrap();
+
     let response = fixture
         .call_server_evaluate(&jwt, "document:1", "viewer", "user:alice")
         .await

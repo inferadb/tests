@@ -2,23 +2,19 @@
 //
 // Tests for validating concurrent authentication scenarios
 
-use super::*;
+use std::{sync::Arc, time::Instant};
+
 use reqwest::StatusCode;
-use std::sync::Arc;
-use std::time::Instant;
+
+use super::*;
 
 #[tokio::test]
 async fn test_concurrent_authentication_single_client() {
-    let fixture = TestFixture::create()
-        .await
-        .expect("Failed to create test fixture");
+    let fixture = TestFixture::create().await.expect("Failed to create test fixture");
 
     // Generate JWT
-    let jwt = Arc::new(
-        fixture
-            .generate_jwt(None, &["inferadb.check"])
-            .expect("Failed to generate JWT"),
-    );
+    let jwt =
+        Arc::new(fixture.generate_jwt(None, &["inferadb.check"]).expect("Failed to generate JWT"));
 
     // Launch 100 concurrent requests with the same JWT
     let mut handles = Vec::new();
@@ -66,16 +62,8 @@ async fn test_concurrent_authentication_single_client() {
 
     let elapsed = start.elapsed();
 
-    assert_eq!(
-        success_count, 100,
-        "Expected 100 successful requests, got {}",
-        success_count
-    );
-    assert_eq!(
-        failure_count, 0,
-        "Expected 0 failures, got {}",
-        failure_count
-    );
+    assert_eq!(success_count, 100, "Expected 100 successful requests, got {}", success_count);
+    assert_eq!(failure_count, 0, "Expected 0 failures, got {}", failure_count);
 
     println!(
         "✓ 100 concurrent requests completed in {:?} (avg: {:.2}ms)",
@@ -96,7 +84,7 @@ async fn test_concurrent_authentication_multiple_clients() {
             Ok(fixture) => fixtures.push(fixture),
             Err(e) => {
                 eprintln!("Warning: Failed to create fixture {}: {}", i, e);
-            }
+            },
         }
     }
 
@@ -112,10 +100,7 @@ async fn test_concurrent_authentication_multiple_clients() {
     // Generate JWTs for each fixture
     let jwts: Vec<String> = fixtures
         .iter()
-        .map(|f| {
-            f.generate_jwt(None, &["inferadb.check"])
-                .expect("Failed to generate JWT")
-        })
+        .map(|f| f.generate_jwt(None, &["inferadb.check"]).expect("Failed to generate JWT"))
         .collect();
 
     // Launch concurrent requests (one per client)
@@ -166,10 +151,7 @@ async fn test_concurrent_authentication_multiple_clients() {
         fixture_count, success_count
     );
 
-    println!(
-        "✓ {} concurrent clients authenticated in {:?}",
-        fixture_count, elapsed
-    );
+    println!("✓ {} concurrent clients authenticated in {:?}", fixture_count, elapsed);
 
     // Cleanup all fixtures
     for fixture in fixtures {
@@ -179,9 +161,7 @@ async fn test_concurrent_authentication_multiple_clients() {
 
 #[tokio::test]
 async fn test_concurrent_vault_operations() {
-    let fixture = TestFixture::create()
-        .await
-        .expect("Failed to create test fixture");
+    let fixture = TestFixture::create().await.expect("Failed to create test fixture");
 
     // Generate JWT with both check and write scopes
     let jwt = fixture
@@ -254,11 +234,7 @@ async fn test_concurrent_vault_operations() {
         }
     }
 
-    assert_eq!(
-        success_count, 100,
-        "Expected 100 successful operations, got {}",
-        success_count
-    );
+    assert_eq!(success_count, 100, "Expected 100 successful operations, got {}", success_count);
 
     println!("✓ 100 concurrent vault operations succeeded");
 
@@ -267,22 +243,14 @@ async fn test_concurrent_vault_operations() {
 
 #[tokio::test]
 async fn test_cache_under_concurrent_load() {
-    let fixture = TestFixture::create()
-        .await
-        .expect("Failed to create test fixture");
+    let fixture = TestFixture::create().await.expect("Failed to create test fixture");
 
     // Generate multiple JWTs from same client (different scopes)
-    let jwt1 = fixture
-        .generate_jwt(None, &["inferadb.check"])
-        .expect("Failed to generate JWT 1");
+    let jwt1 = fixture.generate_jwt(None, &["inferadb.check"]).expect("Failed to generate JWT 1");
 
-    let jwt2 = fixture
-        .generate_jwt(None, &["inferadb.check"])
-        .expect("Failed to generate JWT 2");
+    let jwt2 = fixture.generate_jwt(None, &["inferadb.check"]).expect("Failed to generate JWT 2");
 
-    let jwt3 = fixture
-        .generate_jwt(None, &["inferadb.check"])
-        .expect("Failed to generate JWT 3");
+    let jwt3 = fixture.generate_jwt(None, &["inferadb.check"]).expect("Failed to generate JWT 3");
 
     let jwts = Arc::new(vec![jwt1, jwt2, jwt3]);
 
@@ -330,11 +298,7 @@ async fn test_cache_under_concurrent_load() {
 
     let elapsed = start.elapsed();
 
-    assert_eq!(
-        success_count, 300,
-        "Expected 300 successful requests, got {}",
-        success_count
-    );
+    assert_eq!(success_count, 300, "Expected 300 successful requests, got {}", success_count);
 
     println!(
         "✓ 300 concurrent requests (3 JWTs) completed in {:?} (avg: {:.2}ms)",
@@ -350,14 +314,10 @@ async fn test_cache_under_concurrent_load() {
 
 #[tokio::test]
 async fn test_concurrent_first_time_authentication() {
-    let fixture = TestFixture::create()
-        .await
-        .expect("Failed to create test fixture");
+    let fixture = TestFixture::create().await.expect("Failed to create test fixture");
 
     // Generate a JWT that hasn't been used yet
-    let jwt = fixture
-        .generate_jwt(None, &["inferadb.check"])
-        .expect("Failed to generate JWT");
+    let jwt = fixture.generate_jwt(None, &["inferadb.check"]).expect("Failed to generate JWT");
 
     // Launch 50 concurrent requests with the same new JWT
     // This tests thundering herd protection - all requests arrive before
@@ -402,16 +362,9 @@ async fn test_concurrent_first_time_authentication() {
 
     let elapsed = start.elapsed();
 
-    assert_eq!(
-        success_count, 50,
-        "Expected 50 successful requests, got {}",
-        success_count
-    );
+    assert_eq!(success_count, 50, "Expected 50 successful requests, got {}", success_count);
 
-    println!(
-        "✓ 50 concurrent first-time authentications completed in {:?}",
-        elapsed
-    );
+    println!("✓ 50 concurrent first-time authentications completed in {:?}", elapsed);
 
     // With thundering herd protection, we should see minimal duplicate
     // management API calls (ideally just 1 for certificate fetch)
