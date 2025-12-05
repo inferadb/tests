@@ -1,0 +1,77 @@
+# Documentation
+area/docs:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/*.md"
+          - "docs/**/*"
+
+# CI/CD
+area/ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".github/**/*"
+
+# Kubernetes
+area/k8s:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/k8s/**/*"
+          - "**/kubernetes/**/*"
+          - "**/helm/**/*"
+          - "**/*.yaml"
+          - "**/*.yml"
+          - "!.github/**/*"
+
+# Docker
+area/docker:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/Dockerfile*"
+          - "**/.dockerignore"
+          - "**/docker-compose*.yml"
+          - "**/docker-compose*.yaml"
+          - "**/docker/**/*"
+
+# Configuration
+area/config:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/*.toml"
+          - "**/*.json"
+          - "!package*.json"
+          - "!.github/**/*"
+
+# Dependencies
+area/deps:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/Cargo.toml"
+          - "**/Cargo.lock"
+
+# Testing
+area/testing:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/tests/**/*"
+          - "**/e2e/**/*"
+          - "**/integration/**/*"
+          - "**/*_test.rs"
+          - "**/*_tests.rs"
+
+# Observability
+area/observability:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/telemetry/**/*"
+          - "**/metrics/**/*"
+          - "**/tracing/**/*"
+          - "**/logging/**/*"
+          - "**/monitoring/**/*"
+          - "**/grafana/**/*"
+          - "**/prometheus/**/*"
+
+# Repository label
+repo/tests:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/*"
