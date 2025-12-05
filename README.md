@@ -1,6 +1,6 @@
 # InferaDB Integration Tests
 
-End-to-end tests validating InferaDB Server and Management API in Kubernetes.
+**InferaDB end-to-end integration test suite** - validates Server and Management API in Kubernetes environments.
 
 > [!IMPORTANT]
 > Under active development. Not production-ready.
