@@ -67,7 +67,7 @@ fn ed25519_to_pem(private_key: &[u8; 32]) -> Vec<u8> {
 
 /// Base URLs for services (from environment or defaults)
 pub fn management_api_url() -> String {
-    std::env::var("MANAGEMENT_API_URL").unwrap_or_else(|_| "http://management-api:8081".to_string())
+    std::env::var("MANAGEMENT_API_URL").unwrap_or_else(|_| "http://management-api:9090".to_string())
 }
 
 pub fn server_url() -> String {
@@ -75,11 +75,11 @@ pub fn server_url() -> String {
 }
 
 pub fn server_grpc_url() -> String {
-    std::env::var("SERVER_GRPC_URL").unwrap_or_else(|_| "http://server:50051".to_string())
+    std::env::var("SERVER_GRPC_URL").unwrap_or_else(|_| "http://server:8081".to_string())
 }
 
 pub fn server_internal_url() -> String {
-    std::env::var("SERVER_INTERNAL_URL").unwrap_or_else(|_| "http://server:9090".to_string())
+    std::env::var("SERVER_INTERNAL_URL").unwrap_or_else(|_| "http://server:8082".to_string())
 }
 
 /// Test context containing all necessary state for integration tests
@@ -91,8 +91,8 @@ pub struct TestContext {
     pub server_internal_url: String,
 }
 
-impl TestContext {
-    pub fn new() -> Self {
+impl Default for TestContext {
+    fn default() -> Self {
         Self {
             client: Client::builder()
                 .cookie_store(true)
@@ -103,6 +103,12 @@ impl TestContext {
             server_url: server_url(),
             server_internal_url: server_internal_url(),
         }
+    }
+}
+
+impl TestContext {
+    pub fn new() -> Self {
+        Self::default()
     }
 }
 

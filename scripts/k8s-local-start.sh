@@ -102,16 +102,22 @@ EOF
 build_images() {
     log_info "Building Docker images..."
 
+    # Determine the repo root (parent of tests directory)
+    local script_dir
+    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local repo_root
+    repo_root="$(cd "${script_dir}/../.." && pwd)"
+
     # Build server
     log_info "Building server image..."
-    docker build -t "${SERVER_IMAGE}" server/ || {
+    docker build -t "${SERVER_IMAGE}" "${repo_root}/server/" || {
         log_error "Failed to build server image"
         exit 1
     }
 
     # Build management
     log_info "Building management image..."
-    docker build -f management/Dockerfile.integration -t "${MANAGEMENT_IMAGE}" management/ || {
+    docker build -f "${repo_root}/management/Dockerfile.integration" -t "${MANAGEMENT_IMAGE}" "${repo_root}/management/" || {
         log_error "Failed to build management image"
         exit 1
     }
@@ -140,8 +146,14 @@ create_namespace() {
 deploy_rbac() {
     log_info "Deploying RBAC resources..."
 
-    kubectl apply -f server/k8s/rbac.yaml -n "${NAMESPACE}"
-    kubectl apply -f management/k8s/rbac.yaml -n "${NAMESPACE}"
+    # Determine the repo root (parent of tests directory)
+    local script_dir
+    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local repo_root
+    repo_root="$(cd "${script_dir}/../.." && pwd)"
+
+    kubectl apply -f "${repo_root}/server/k8s/rbac.yaml" -n "${NAMESPACE}"
+    kubectl apply -f "${repo_root}/management/k8s/rbac.yaml" -n "${NAMESPACE}"
 
     log_info "RBAC deployed ✓"
 }
@@ -336,21 +348,27 @@ spec:
         image: ${MANAGEMENT_IMAGE}
         imagePullPolicy: Never
         ports:
-        - containerPort: 3000
+        - containerPort: 9090
           name: public
         - containerPort: 9091
+          name: grpc
+        - containerPort: 9092
           name: internal
         env:
         - name: RUST_LOG
-          value: "info,infera_management_core=debug,infera_discovery=debug"
-        - name: INFERADB_MGMT__SERVER__HTTP_HOST
+          value: "info,inferadb_management_core=debug,inferadb_discovery=debug"
+        - name: INFERADB_MGMT__SERVER__HOST
           value: "0.0.0.0"
-        - name: INFERADB_MGMT__SERVER__HTTP_PORT
-          value: "3000"
+        - name: INFERADB_MGMT__SERVER__PORT
+          value: "9090"
+        - name: INFERADB_MGMT__SERVER__GRPC_HOST
+          value: "0.0.0.0"
+        - name: INFERADB_MGMT__SERVER__GRPC_PORT
+          value: "9091"
         - name: INFERADB_MGMT__SERVER__INTERNAL_HOST
           value: "0.0.0.0"
         - name: INFERADB_MGMT__SERVER__INTERNAL_PORT
-          value: "9091"
+          value: "9092"
         - name: INFERADB_MGMT__STORAGE__BACKEND
           value: "foundationdb"
         - name: INFERADB_MGMT__STORAGE__FDB_CLUSTER_FILE
@@ -359,11 +377,11 @@ spec:
         - name: INFERADB_MGMT__SERVER_VERIFICATION__ENABLED
           value: "true"
         - name: INFERADB_MGMT__SERVER_VERIFICATION__SERVER_JWKS_URL
-          value: "http://inferadb-server:9090/.well-known/jwks.json"
+          value: "http://inferadb-server:8082/.well-known/jwks.json"
         - name: INFERADB_MGMT__SERVER_VERIFICATION__CACHE_TTL_SECONDS
           value: "300"
         - name: MANAGEMENT_API_AUDIENCE
-          value: "http://inferadb-management:3000"
+          value: "http://inferadb-management:9092"
         volumeMounts:
         - name: fdb-cluster-file
           mountPath: /var/fdb
@@ -371,7 +389,7 @@ spec:
         readinessProbe:
           httpGet:
             path: /health
-            port: 3000
+            port: 9090
           initialDelaySeconds: 5
           periodSeconds: 5
       volumes:
@@ -392,13 +410,13 @@ spec:
     app: inferadb-management
   ports:
   - name: public
-    port: 3000
-    targetPort: 3000
-    nodePort: 30081
+    port: 9090
+    targetPort: 9090
+    nodePort: 30090
   - name: internal
-    port: 9091
-    targetPort: 9091
-    nodePort: 30091
+    port: 9092
+    targetPort: 9092
+    nodePort: 30092
   type: NodePort
 EOF
 
@@ -444,7 +462,9 @@ spec:
         ports:
         - containerPort: 8080
           name: public
-        - containerPort: 9090
+        - containerPort: 8081
+          name: grpc
+        - containerPort: 8082
           name: internal
         env:
         - name: RUST_LOG
@@ -455,16 +475,20 @@ spec:
           value: "8080"
         - name: INFERADB__SERVER__INTERNAL_HOST
           value: "0.0.0.0"
+        - name: INFERADB__SERVER__GRPC_PORT
+          value: "8081"
         - name: INFERADB__SERVER__INTERNAL_PORT
-          value: "9090"
+          value: "8082"
         - name: INFERADB__AUTH__ENABLED
           value: "true"
-        - name: INFERADB__AUTH__MANAGEMENT_API_URL
-          value: "http://inferadb-management:3000"
-        - name: INFERADB__AUTH__MANAGEMENT_INTERNAL_API_URL
-          value: "http://inferadb-management:9091"
-        - name: INFERADB__AUTH__JWKS_BASE_URL
-          value: "http://inferadb-management:3000"
+        # Management service discovery configuration
+        - name: INFERADB__MANAGEMENT_SERVICE__SERVICE_URL
+          value: "http://inferadb-management:9092"
+        - name: INFERADB__MANAGEMENT_SERVICE__INTERNAL_PORT
+          value: "9092"
+        # Auth configuration
+        - name: INFERADB__AUTH__JWKS_URL
+          value: "http://inferadb-management:9090"
         - name: INFERADB__AUTH__JWKS_CACHE_TTL
           value: "300"
         - name: INFERADB__AUTH__MANAGEMENT_CACHE_TTL_SECONDS
@@ -475,11 +499,12 @@ spec:
           value: "true"
         - name: INFERADB__AUTH__MANAGEMENT_VERIFY_ORG_STATUS
           value: "true"
-        - name: INFERADB__AUTH__DISCOVERY__MODE__TYPE
+        # Service discovery configuration
+        - name: INFERADB__DISCOVERY__MODE__TYPE
           value: "kubernetes"
         - name: KUBERNETES_NAMESPACE
           value: "${NAMESPACE}"
-        - name: INFERADB__AUTH__DISCOVERY__CACHE_TTL_SECONDS
+        - name: INFERADB__DISCOVERY__CACHE_TTL_SECONDS
           value: "30"
         - name: INFERADB__STORE__BACKEND
           value: "foundationdb"
@@ -487,7 +512,7 @@ spec:
           value: "/var/fdb/fdb.cluster"
         - name: INFERADB__STORE__CONNECTION_STRING
           value: "foundationdb-cluster:4500"
-        - name: INFERADB__AUTH__SERVER_IDENTITY_PRIVATE_KEY
+        - name: INFERADB__IDENTITY__PRIVATE_KEY_PEM
           valueFrom:
             secretKeyRef:
               name: inferadb-server-identity
@@ -523,10 +548,14 @@ spec:
     port: 8080
     targetPort: 8080
     nodePort: 30080
+  - name: grpc
+    port: 8081
+    targetPort: 8081
+    nodePort: 30081
   - name: internal
-    port: 9090
-    targetPort: 9090
-    nodePort: 30090
+    port: 8082
+    targetPort: 8082
+    nodePort: 30082
   type: NodePort
 EOF
 
@@ -546,7 +575,7 @@ show_status() {
 
     log_info "Access URLs:"
     echo "  Server:      http://localhost:8080"
-    echo "  Management:  http://localhost:3000"
+    echo "  Management:  http://localhost:9090"
     echo ""
 
     log_info "Useful Commands:"
