@@ -357,18 +357,12 @@ spec:
         env:
         - name: RUST_LOG
           value: "info,inferadb_management_core=debug,inferadb_discovery=debug"
-        - name: INFERADB_MGMT__SERVER__HOST
-          value: "0.0.0.0"
-        - name: INFERADB_MGMT__SERVER__PORT
-          value: "9090"
-        - name: INFERADB_MGMT__SERVER__GRPC_HOST
-          value: "0.0.0.0"
-        - name: INFERADB_MGMT__SERVER__GRPC_PORT
-          value: "9091"
-        - name: INFERADB_MGMT__SERVER__INTERNAL_HOST
-          value: "0.0.0.0"
-        - name: INFERADB_MGMT__SERVER__INTERNAL_PORT
-          value: "9092"
+        - name: INFERADB_MGMT__SERVER__PUBLIC_REST
+          value: "0.0.0.0:9090"
+        - name: INFERADB_MGMT__SERVER__PUBLIC_GRPC
+          value: "0.0.0.0:9091"
+        - name: INFERADB_MGMT__SERVER__PRIVATE_REST
+          value: "0.0.0.0:9092"
         - name: INFERADB_MGMT__STORAGE__BACKEND
           value: "foundationdb"
         - name: INFERADB_MGMT__STORAGE__FDB_CLUSTER_FILE
@@ -469,16 +463,12 @@ spec:
         env:
         - name: RUST_LOG
           value: "info,infera_discovery=debug,infera_auth=debug"
-        - name: INFERADB__SERVER__HOST
-          value: "0.0.0.0"
-        - name: INFERADB__SERVER__PORT
-          value: "8080"
-        - name: INFERADB__SERVER__INTERNAL_HOST
-          value: "0.0.0.0"
-        - name: INFERADB__SERVER__GRPC_PORT
-          value: "8081"
-        - name: INFERADB__SERVER__INTERNAL_PORT
-          value: "8082"
+        - name: INFERADB__SERVER__PUBLIC_REST
+          value: "0.0.0.0:8080"
+        - name: INFERADB__SERVER__PUBLIC_GRPC
+          value: "0.0.0.0:8081"
+        - name: INFERADB__SERVER__PRIVATE_REST
+          value: "0.0.0.0:8082"
         - name: INFERADB__AUTH__ENABLED
           value: "true"
         # Management service discovery configuration
