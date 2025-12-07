@@ -62,7 +62,7 @@ async fn test_graceful_degradation_with_network_timeout() {
     let claims = ClientClaims {
         iss: format!("{}/v1", fixture.ctx.management_url),
         sub: format!("client:{}", fixture.client_id),
-        aud: fixture.ctx.server_url.clone(),
+        aud: REQUIRED_AUDIENCE.to_string(),
         exp: (now + Duration::minutes(5)).timestamp(),
         iat: now.timestamp(),
         jti: Uuid::new_v4().to_string(),
@@ -221,7 +221,7 @@ async fn test_error_handling_for_invalid_responses() {
     let claims = ClientClaims {
         iss: format!("{}/v1", fixture.ctx.management_url),
         sub: format!("client:{}", fixture.client_id),
-        aud: fixture.ctx.server_url.clone(),
+        aud: REQUIRED_AUDIENCE.to_string(),
         exp: (now + Duration::minutes(5)).timestamp(),
         iat: now.timestamp(),
         jti: Uuid::new_v4().to_string(),

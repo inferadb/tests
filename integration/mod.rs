@@ -65,6 +65,10 @@ fn ed25519_to_pem(private_key: &[u8; 32]) -> Vec<u8> {
     pem.into_bytes()
 }
 
+/// Required JWT audience for InferaDB Server API
+/// This MUST match the server's REQUIRED_AUDIENCE constant
+pub const REQUIRED_AUDIENCE: &str = "https://api.inferadb.com";
+
 /// Base URLs for services (from environment or defaults)
 pub fn management_api_url() -> String {
     std::env::var("MANAGEMENT_API_URL").unwrap_or_else(|_| "http://management-api:9090".to_string())
@@ -484,7 +488,7 @@ impl TestFixture {
         let claims = ClientClaims {
             iss: self.ctx.management_url.clone(),
             sub: format!("client:{}", self.client_id),
-            aud: self.ctx.server_url.clone(),
+            aud: REQUIRED_AUDIENCE.to_string(), // Use hardcoded audience
             exp: (now + Duration::minutes(5)).timestamp(),
             iat: now.timestamp(),
             jti: Uuid::new_v4().to_string(),
@@ -514,7 +518,7 @@ impl TestFixture {
         let claims = ClientClaims {
             iss: self.ctx.management_url.clone(),
             sub: format!("client:{}", self.client_id),
-            aud: self.ctx.server_url.clone(),
+            aud: REQUIRED_AUDIENCE.to_string(), // Use hardcoded audience
             exp: (now + Duration::minutes(5)).timestamp(),
             iat: now.timestamp(),
             jti: Uuid::new_v4().to_string(),

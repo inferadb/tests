@@ -175,7 +175,7 @@ async fn test_account_ownership_validation() {
     let claims = ClientClaims {
         iss: format!("{}/v1", fixture.ctx.management_url),
         sub: format!("client:{}", fixture.client_id),
-        aud: fixture.ctx.server_url.clone(),
+        aud: REQUIRED_AUDIENCE.to_string(),
         exp: (now + Duration::minutes(5)).timestamp(),
         iat: now.timestamp(),
         jti: Uuid::new_v4().to_string(),
@@ -199,12 +199,15 @@ async fn test_account_ownership_validation() {
         .await
         .expect("Failed to call server");
 
-    // Should fail with 401 Unauthorized - the server can't verify the JWT
-    // because the fake org_id (888888888) doesn't exist, so JWKS fetch fails
+    // Should fail with 403 Forbidden - the JWT signature is valid (using the real
+    // certificate kid), but the vault middleware detects that the vault doesn't
+    // belong to the claimed organization (888888888).
+    // Note: 403 is correct because authentication succeeded (401 would indicate
+    // the JWT couldn't be verified), but authorization failed (vault ownership mismatch).
     assert_eq!(
         response.status(),
-        StatusCode::UNAUTHORIZED,
-        "Expected 401 Unauthorized for nonexistent organization"
+        StatusCode::FORBIDDEN,
+        "Expected 403 Forbidden for organization/vault ownership mismatch"
     );
 
     fixture.cleanup().await.expect("Failed to cleanup");

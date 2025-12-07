@@ -149,7 +149,7 @@ async fn test_complete_user_journey() {
     let claims = ClientClaims {
         iss: format!("{}/v1", ctx.management_url),
         sub: format!("client:{}", client_id),
-        aud: ctx.server_url.clone(),
+        aud: REQUIRED_AUDIENCE.to_string(),
         exp: (now + Duration::minutes(5)).timestamp(),
         iat: now.timestamp(),
         jti: Uuid::new_v4().to_string(),

@@ -141,7 +141,7 @@ async fn test_jwt_with_expired_token() {
     let claims = ClientClaims {
         iss: fixture.ctx.management_url.clone(),
         sub: format!("client:{}", fixture.client_id),
-        aud: fixture.ctx.server_url.clone(),
+        aud: REQUIRED_AUDIENCE.to_string(),
         exp: (now - Duration::minutes(10)).timestamp(), // Expired 10 minutes ago
         iat: (now - Duration::minutes(15)).timestamp(),
         jti: Uuid::new_v4().to_string(),
@@ -184,7 +184,7 @@ async fn test_jwt_with_invalid_kid() {
     let claims = ClientClaims {
         iss: format!("{}/v1", fixture.ctx.management_url),
         sub: format!("client:{}", fixture.client_id),
-        aud: fixture.ctx.server_url.clone(),
+        aud: REQUIRED_AUDIENCE.to_string(),
         exp: (now + Duration::minutes(5)).timestamp(),
         iat: now.timestamp(),
         jti: Uuid::new_v4().to_string(),
