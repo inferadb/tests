@@ -108,17 +108,17 @@ build_images() {
     local repo_root
     repo_root="$(cd "${script_dir}/../.." && pwd)"
 
-    # Build server
-    log_info "Building server image..."
-    docker build -t "${SERVER_IMAGE}" "${repo_root}/server/" || {
-        log_error "Failed to build server image"
+    # Build engine
+    log_info "Building engine image..."
+    docker build -t "${SERVER_IMAGE}" "${repo_root}/engine/" || {
+        log_error "Failed to build engine image"
         exit 1
     }
 
-    # Build management
-    log_info "Building management image..."
-    docker build -f "${repo_root}/management/Dockerfile.integration" -t "${CONTROL_IMAGE}" "${repo_root}/management/" || {
-        log_error "Failed to build management image"
+    # Build control
+    log_info "Building control image..."
+    docker build -f "${repo_root}/control/Dockerfile.integration" -t "${CONTROL_IMAGE}" "${repo_root}/control/" || {
+        log_error "Failed to build control image"
         exit 1
     }
 
@@ -152,8 +152,8 @@ deploy_rbac() {
     local repo_root
     repo_root="$(cd "${script_dir}/../.." && pwd)"
 
-    kubectl apply -f "${repo_root}/server/k8s/rbac.yaml" -n "${NAMESPACE}"
-    kubectl apply -f "${repo_root}/management/k8s/rbac.yaml" -n "${NAMESPACE}"
+    kubectl apply -f "${repo_root}/engine/k8s/rbac.yaml" -n "${NAMESPACE}"
+    kubectl apply -f "${repo_root}/control/k8s/rbac.yaml" -n "${NAMESPACE}"
 
     log_info "RBAC deployed ✓"
 }

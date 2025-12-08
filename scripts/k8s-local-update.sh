@@ -45,17 +45,17 @@ check_cluster_exists() {
 build_and_load_images() {
     log_info "Building Docker images..."
 
-    # Build server
-    log_info "Building server image..."
-    docker build -t "${SERVER_IMAGE}" server/ || {
-        log_error "Failed to build server image"
+    # Build engine
+    log_info "Building engine image..."
+    docker build -t "${SERVER_IMAGE}" engine/ || {
+        log_error "Failed to build engine image"
         exit 1
     }
 
-    # Build management
-    log_info "Building management image..."
-    docker build -f management/Dockerfile.integration -t "${CONTROL_IMAGE}" management/ || {
-        log_error "Failed to build management image"
+    # Build control
+    log_info "Building control image..."
+    docker build -f control/Dockerfile.integration -t "${CONTROL_IMAGE}" control/ || {
+        log_error "Failed to build control image"
         exit 1
     }
 
@@ -70,8 +70,8 @@ build_and_load_images() {
 update_rbac() {
     log_info "Updating RBAC resources..."
 
-    kubectl apply -f server/k8s/rbac.yaml -n "${NAMESPACE}"
-    kubectl apply -f management/k8s/rbac.yaml -n "${NAMESPACE}"
+    kubectl apply -f engine/k8s/rbac.yaml -n "${NAMESPACE}"
+    kubectl apply -f control/k8s/rbac.yaml -n "${NAMESPACE}"
 
     log_info "RBAC updated ✓"
 }
