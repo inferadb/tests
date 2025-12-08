@@ -491,9 +491,9 @@ spec:
         - name: INFERADB__AUTH__ENABLED
           value: "true"
         # Management service discovery configuration
-        - name: INFERADB__MANAGEMENT_SERVICE__SERVICE_URL
+        - name: INFERADB__CONTROL__SERVICE_URL
           value: "http://inferadb-control:9092"
-        - name: INFERADB__MANAGEMENT_SERVICE__INTERNAL_PORT
+        - name: INFERADB__CONTROL__INTERNAL_PORT
           value: "9092"
         # Auth configuration
         - name: INFERADB__AUTH__JWKS_URL
