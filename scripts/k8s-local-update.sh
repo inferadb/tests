@@ -18,8 +18,8 @@ NC='\033[0m' # No Color
 # Configuration
 CLUSTER_NAME="${CLUSTER_NAME:-inferadb-local}"
 NAMESPACE="${NAMESPACE:-inferadb}"
-SERVER_IMAGE="${SERVER_IMAGE:-inferadb-server:local}"
-MANAGEMENT_IMAGE="${MANAGEMENT_IMAGE:-inferadb-management:local}"
+SERVER_IMAGE="${SERVER_IMAGE:-inferadb-engine:local}"
+CONTROL_IMAGE="${CONTROL_IMAGE:-inferadb-control:local}"
 
 log_info() {
     echo -e "${GREEN}[INFO]${NC} $1"
@@ -54,7 +54,7 @@ build_and_load_images() {
 
     # Build management
     log_info "Building management image..."
-    docker build -f management/Dockerfile.integration -t "${MANAGEMENT_IMAGE}" management/ || {
+    docker build -f management/Dockerfile.integration -t "${CONTROL_IMAGE}" management/ || {
         log_error "Failed to build management image"
         exit 1
     }
@@ -63,7 +63,7 @@ build_and_load_images() {
 
     log_info "Loading images into kind cluster..."
     kind load docker-image "${SERVER_IMAGE}" --name "${CLUSTER_NAME}"
-    kind load docker-image "${MANAGEMENT_IMAGE}" --name "${CLUSTER_NAME}"
+    kind load docker-image "${CONTROL_IMAGE}" --name "${CLUSTER_NAME}"
     log_info "Images loaded ✓"
 }
 
@@ -80,14 +80,14 @@ restart_deployments() {
     log_info "Restarting deployments to use new images..."
 
     # Restart management API
-    kubectl rollout restart deployment/inferadb-management -n "${NAMESPACE}"
+    kubectl rollout restart deployment/inferadb-control -n "${NAMESPACE}"
     log_info "Waiting for Management API rollout..."
-    kubectl rollout status deployment/inferadb-management -n "${NAMESPACE}" --timeout=120s
+    kubectl rollout status deployment/inferadb-control -n "${NAMESPACE}" --timeout=120s
 
     # Restart server
-    kubectl rollout restart deployment/inferadb-server -n "${NAMESPACE}"
+    kubectl rollout restart deployment/inferadb-engine -n "${NAMESPACE}"
     log_info "Waiting for Server rollout..."
-    kubectl rollout status deployment/inferadb-server -n "${NAMESPACE}" --timeout=120s
+    kubectl rollout status deployment/inferadb-engine -n "${NAMESPACE}" --timeout=120s
 
     log_info "Deployments restarted ✓"
 }
@@ -99,11 +99,11 @@ show_status() {
     echo ""
 
     log_info "Recent Server Logs:"
-    kubectl logs deployment/inferadb-server -n "${NAMESPACE}" --tail=10
+    kubectl logs deployment/inferadb-engine -n "${NAMESPACE}" --tail=10
     echo ""
 
     log_info "Recent Management API Logs:"
-    kubectl logs deployment/inferadb-management -n "${NAMESPACE}" --tail=10
+    kubectl logs deployment/inferadb-control -n "${NAMESPACE}" --tail=10
 }
 
 main() {

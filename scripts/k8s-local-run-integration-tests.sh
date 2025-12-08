@@ -46,14 +46,14 @@ check_deployments_ready() {
     log_info "Checking if deployments are ready..."
 
     # Check management API
-    if ! kubectl get deployment inferadb-management -n "${NAMESPACE}" &>/dev/null; then
+    if ! kubectl get deployment inferadb-control -n "${NAMESPACE}" &>/dev/null; then
         log_error "Management API deployment not found."
         log_info "Deploy it first with: ./tests/scripts/k8s-local-start.sh"
         exit 1
     fi
 
     # Check server
-    if ! kubectl get deployment inferadb-server -n "${NAMESPACE}" &>/dev/null; then
+    if ! kubectl get deployment inferadb-engine -n "${NAMESPACE}" &>/dev/null; then
         log_error "Server deployment not found."
         log_info "Deploy it first with: ./tests/scripts/k8s-local-start.sh"
         exit 1
@@ -61,10 +61,10 @@ check_deployments_ready() {
 
     # Wait for deployments to be ready
     log_info "Waiting for Management API to be ready..."
-    kubectl wait --for=condition=available deployment/inferadb-management -n "${NAMESPACE}" --timeout=60s
+    kubectl wait --for=condition=available deployment/inferadb-control -n "${NAMESPACE}" --timeout=60s
 
     log_info "Waiting for Server to be ready..."
-    kubectl wait --for=condition=available deployment/inferadb-server -n "${NAMESPACE}" --timeout=60s
+    kubectl wait --for=condition=available deployment/inferadb-engine -n "${NAMESPACE}" --timeout=60s
 
     log_info "All deployments ready ✓"
 }
@@ -106,11 +106,11 @@ collect_logs() {
         echo ""
 
         echo "=== Management API Logs ==="
-        kubectl logs deployment/inferadb-management -n "${NAMESPACE}" --tail=100
+        kubectl logs deployment/inferadb-control -n "${NAMESPACE}" --tail=100
         echo ""
 
         echo "=== Server Logs ==="
-        kubectl logs deployment/inferadb-server -n "${NAMESPACE}" --tail=100
+        kubectl logs deployment/inferadb-engine -n "${NAMESPACE}" --tail=100
         echo ""
 
         echo "=== Pod Status ==="
@@ -127,19 +127,19 @@ collect_logs() {
 show_helpful_commands() {
     log_info "Helpful debugging commands:"
     echo "  # View server logs"
-    echo "  kubectl logs -f deployment/inferadb-server -n ${NAMESPACE}"
+    echo "  kubectl logs -f deployment/inferadb-engine -n ${NAMESPACE}"
     echo ""
     echo "  # View management API logs"
-    echo "  kubectl logs -f deployment/inferadb-management -n ${NAMESPACE}"
+    echo "  kubectl logs -f deployment/inferadb-control -n ${NAMESPACE}"
     echo ""
     echo "  # Check pod status"
     echo "  kubectl get pods -n ${NAMESPACE}"
     echo ""
     echo "  # Port forward to server"
-    echo "  kubectl port-forward -n ${NAMESPACE} deployment/inferadb-server 8080:8080"
+    echo "  kubectl port-forward -n ${NAMESPACE} deployment/inferadb-engine 8080:8080"
     echo ""
     echo "  # Port forward to management API"
-    echo "  kubectl port-forward -n ${NAMESPACE} deployment/inferadb-management 3000:3000"
+    echo "  kubectl port-forward -n ${NAMESPACE} deployment/inferadb-control 3000:3000"
 }
 
 main() {

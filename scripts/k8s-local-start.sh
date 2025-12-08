@@ -19,8 +19,8 @@ NC='\033[0m' # No Color
 # Configuration
 CLUSTER_NAME="${CLUSTER_NAME:-inferadb-local}"
 NAMESPACE="${NAMESPACE:-inferadb}"
-SERVER_IMAGE="${SERVER_IMAGE:-inferadb-server:local}"
-MANAGEMENT_IMAGE="${MANAGEMENT_IMAGE:-inferadb-management:local}"
+SERVER_IMAGE="${SERVER_IMAGE:-inferadb-engine:local}"
+CONTROL_IMAGE="${CONTROL_IMAGE:-inferadb-control:local}"
 
 log_info() {
     echo -e "${GREEN}[INFO]${NC} $1"
@@ -117,7 +117,7 @@ build_images() {
 
     # Build management
     log_info "Building management image..."
-    docker build -f "${repo_root}/management/Dockerfile.integration" -t "${MANAGEMENT_IMAGE}" "${repo_root}/management/" || {
+    docker build -f "${repo_root}/management/Dockerfile.integration" -t "${CONTROL_IMAGE}" "${repo_root}/management/" || {
         log_error "Failed to build management image"
         exit 1
     }
@@ -129,7 +129,7 @@ load_images() {
     log_info "Loading images into kind cluster..."
 
     kind load docker-image "${SERVER_IMAGE}" --name "${CLUSTER_NAME}"
-    kind load docker-image "${MANAGEMENT_IMAGE}" --name "${CLUSTER_NAME}"
+    kind load docker-image "${CONTROL_IMAGE}" --name "${CLUSTER_NAME}"
 
     log_info "Images loaded ✓"
 }
@@ -330,22 +330,22 @@ deploy_management() {
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: inferadb-management
+  name: inferadb-control
   namespace: ${NAMESPACE}
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: inferadb-management
+      app: inferadb-control
   template:
     metadata:
       labels:
-        app: inferadb-management
+        app: inferadb-control
     spec:
-      serviceAccountName: inferadb-management
+      serviceAccountName: inferadb-control
       containers:
-      - name: management-api
-        image: ${MANAGEMENT_IMAGE}
+      - name: control-api
+        image: ${CONTROL_IMAGE}
         imagePullPolicy: Never
         ports:
         - containerPort: 9090
@@ -356,26 +356,26 @@ spec:
           name: internal
         env:
         - name: RUST_LOG
-          value: "info,inferadb_management_core=debug,inferadb_discovery=debug"
-        - name: INFERADB_MGMT__SERVER__PUBLIC_REST
+          value: "info,inferadb_control_core=debug,inferadb_discovery=debug"
+        - name: INFERADB_CTRL__SERVER__PUBLIC_REST
           value: "0.0.0.0:9090"
-        - name: INFERADB_MGMT__SERVER__PUBLIC_GRPC
+        - name: INFERADB_CTRL__SERVER__PUBLIC_GRPC
           value: "0.0.0.0:9091"
-        - name: INFERADB_MGMT__SERVER__PRIVATE_REST
+        - name: INFERADB_CTRL__SERVER__PRIVATE_REST
           value: "0.0.0.0:9092"
-        - name: INFERADB_MGMT__STORAGE__BACKEND
+        - name: INFERADB_CTRL__STORAGE__BACKEND
           value: "foundationdb"
-        - name: INFERADB_MGMT__STORAGE__FDB_CLUSTER_FILE
+        - name: INFERADB_CTRL__STORAGE__FDB_CLUSTER_FILE
           value: "/var/fdb/fdb.cluster"
         # Kubernetes discovery enabled via config.integration.yaml
-        - name: INFERADB_MGMT__SERVER_VERIFICATION__ENABLED
+        - name: INFERADB_CTRL__SERVER_VERIFICATION__ENABLED
           value: "true"
-        - name: INFERADB_MGMT__SERVER_VERIFICATION__SERVER_JWKS_URL
-          value: "http://inferadb-server:8082/.well-known/jwks.json"
-        - name: INFERADB_MGMT__SERVER_VERIFICATION__CACHE_TTL_SECONDS
+        - name: INFERADB_CTRL__SERVER_VERIFICATION__SERVER_JWKS_URL
+          value: "http://inferadb-engine:8082/.well-known/jwks.json"
+        - name: INFERADB_CTRL__SERVER_VERIFICATION__CACHE_TTL_SECONDS
           value: "300"
-        - name: MANAGEMENT_API_AUDIENCE
-          value: "http://inferadb-management:9092"
+        - name: CONTROL_API_AUDIENCE
+          value: "http://inferadb-control:9092"
         volumeMounts:
         - name: fdb-cluster-file
           mountPath: /var/fdb
@@ -416,11 +416,11 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: inferadb-management
+  name: inferadb-control
   namespace: ${NAMESPACE}
 spec:
   selector:
-    app: inferadb-management
+    app: inferadb-control
   ports:
   - name: public
     port: 9090
@@ -434,7 +434,7 @@ spec:
 EOF
 
     log_info "Waiting for Management API to be ready..."
-    kubectl wait --for=condition=available deployment/inferadb-management -n "${NAMESPACE}" --timeout=120s
+    kubectl wait --for=condition=available deployment/inferadb-control -n "${NAMESPACE}" --timeout=120s
 
     log_info "Management API deployed ✓"
 }
@@ -443,9 +443,9 @@ deploy_server() {
     log_info "Deploying Server..."
 
     # Create server identity secret if it doesn't exist
-    if ! kubectl get secret inferadb-server-identity -n "${NAMESPACE}" &>/dev/null; then
+    if ! kubectl get secret inferadb-engine-identity -n "${NAMESPACE}" &>/dev/null; then
         log_info "Creating server identity secret..."
-        kubectl create secret generic inferadb-server-identity -n "${NAMESPACE}" \
+        kubectl create secret generic inferadb-engine-identity -n "${NAMESPACE}" \
             --from-literal=server-identity.pem="-----BEGIN PRIVATE KEY-----
 MC4CAQAwBQYDK2VwBCIEICBavKgCnA54kjkPsUVqz4K2or443E+EOQVU/yDZUWz3
 -----END PRIVATE KEY-----"
@@ -455,19 +455,19 @@ MC4CAQAwBQYDK2VwBCIEICBavKgCnA54kjkPsUVqz4K2or443E+EOQVU/yDZUWz3
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: inferadb-server
+  name: inferadb-engine
   namespace: ${NAMESPACE}
 spec:
   replicas: 3
   selector:
     matchLabels:
-      app: inferadb-server
+      app: inferadb-engine
   template:
     metadata:
       labels:
-        app: inferadb-server
+        app: inferadb-engine
     spec:
-      serviceAccountName: inferadb-server
+      serviceAccountName: inferadb-engine
       containers:
       - name: inferadb
         image: ${SERVER_IMAGE}
@@ -492,12 +492,12 @@ spec:
           value: "true"
         # Management service discovery configuration
         - name: INFERADB__MANAGEMENT_SERVICE__SERVICE_URL
-          value: "http://inferadb-management:9092"
+          value: "http://inferadb-control:9092"
         - name: INFERADB__MANAGEMENT_SERVICE__INTERNAL_PORT
           value: "9092"
         # Auth configuration
         - name: INFERADB__AUTH__JWKS_URL
-          value: "http://inferadb-management:9090"
+          value: "http://inferadb-control:9090"
         - name: INFERADB__AUTH__JWKS_CACHE_TTL
           value: "300"
         - name: INFERADB__AUTH__MANAGEMENT_CACHE_TTL_SECONDS
@@ -524,7 +524,7 @@ spec:
         - name: INFERADB__IDENTITY__PRIVATE_KEY_PEM
           valueFrom:
             secretKeyRef:
-              name: inferadb-server-identity
+              name: inferadb-engine-identity
               key: server-identity.pem
         volumeMounts:
         - name: fdb-cluster-file
@@ -566,11 +566,11 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: inferadb-server
+  name: inferadb-engine
   namespace: ${NAMESPACE}
 spec:
   selector:
-    app: inferadb-server
+    app: inferadb-engine
   ports:
   - name: public
     port: 8080
@@ -588,7 +588,7 @@ spec:
 EOF
 
     log_info "Waiting for Server to be ready..."
-    kubectl wait --for=condition=available deployment/inferadb-server -n "${NAMESPACE}" --timeout=120s
+    kubectl wait --for=condition=available deployment/inferadb-engine -n "${NAMESPACE}" --timeout=120s
 
     log_info "Server deployed ✓"
 }
@@ -608,13 +608,13 @@ show_status() {
 
     log_info "Useful Commands:"
     echo "  # Watch server logs (look for discovery messages)"
-    echo "  kubectl logs -f deployment/inferadb-server -n ${NAMESPACE} | grep -i discovery"
+    echo "  kubectl logs -f deployment/inferadb-engine -n ${NAMESPACE} | grep -i discovery"
     echo ""
     echo "  # Watch management logs"
-    echo "  kubectl logs -f deployment/inferadb-management -n ${NAMESPACE} | grep -i discovery"
+    echo "  kubectl logs -f deployment/inferadb-control -n ${NAMESPACE} | grep -i discovery"
     echo ""
     echo "  # Scale management and watch server discover new endpoints"
-    echo "  kubectl scale deployment/inferadb-management --replicas=4 -n ${NAMESPACE}"
+    echo "  kubectl scale deployment/inferadb-control --replicas=4 -n ${NAMESPACE}"
     echo ""
     echo "  # Update deployment with new changes"
     echo "  ./tests/scripts/k8s-local-update.sh"

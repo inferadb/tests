@@ -19,8 +19,8 @@ NC='\033[0m' # No Color
 # Configuration
 CLUSTER_NAME="${CLUSTER_NAME:-inferadb-local}"
 NAMESPACE="${NAMESPACE:-inferadb}"
-SERVER_IMAGE="${SERVER_IMAGE:-inferadb-server:local}"
-MANAGEMENT_IMAGE="${MANAGEMENT_IMAGE:-inferadb-management:local}"
+SERVER_IMAGE="${SERVER_IMAGE:-inferadb-engine:local}"
+CONTROL_IMAGE="${CONTROL_IMAGE:-inferadb-control:local}"
 
 log_info() {
     echo -e "${GREEN}[INFO]${NC} $1"
@@ -49,13 +49,13 @@ show_status() {
 
     log_info "Useful Commands:"
     echo "  # Watch server logs (look for discovery messages)"
-    echo "  kubectl logs -f deployment/inferadb-server -n ${NAMESPACE} | grep -i discovery"
+    echo "  kubectl logs -f deployment/inferadb-engine -n ${NAMESPACE} | grep -i discovery"
     echo ""
     echo "  # Watch management logs"
-    echo "  kubectl logs -f deployment/inferadb-management -n ${NAMESPACE} | grep -i discovery"
+    echo "  kubectl logs -f deployment/inferadb-control -n ${NAMESPACE} | grep -i discovery"
     echo ""
     echo "  # Scale management and watch server discover new endpoints"
-    echo "  kubectl scale deployment/inferadb-management --replicas=4 -n ${NAMESPACE}"
+    echo "  kubectl scale deployment/inferadb-control --replicas=4 -n ${NAMESPACE}"
     echo ""
     echo "  # Update deployment with new changes"
     echo "  ./tests/scripts/k8s-local-update.sh"

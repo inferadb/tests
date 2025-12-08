@@ -157,7 +157,7 @@ fixture.cleanup().await.expect("cleanup failed");
 
 | Issue                 | Solution                                                                              |
 | --------------------- | ------------------------------------------------------------------------------------- |
-| Services not starting | `kubectl get pods -n inferadb && kubectl logs -n inferadb deployment/inferadb-server` |
+| Services not starting | `kubectl get pods -n inferadb && kubectl logs -n inferadb deployment/inferadb-engine` |
 | Port conflicts        | `lsof -i :8080 -i :8081` or `make purge && make start`                                |
 | Tests timing out      | Increase `TEST_TIMEOUT_SECS`, check Docker RAM (4GB+)                                 |
 | Connection refused    | Restart port-forwarding: `make start`                                                 |

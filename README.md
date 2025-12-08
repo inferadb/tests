@@ -79,7 +79,7 @@ async fn test_my_feature() {
 
 | Issue                 | Solution                                                                              |
 | --------------------- | ------------------------------------------------------------------------------------- |
-| Services not starting | `kubectl get pods -n inferadb && kubectl logs -n inferadb deployment/inferadb-server` |
+| Services not starting | `kubectl get pods -n inferadb && kubectl logs -n inferadb deployment/inferadb-engine` |
 | Port in use           | `./scripts/k8s-local-purge.sh && ./scripts/k8s-local-start.sh`                        |
 | Tests timing out      | Increase `TEST_TIMEOUT_SECS=60`, check Docker RAM (4GB+)                              |
 

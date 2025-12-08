@@ -49,14 +49,14 @@ cleanup_docker_resources() {
     log_info "Cleaning up Docker resources..."
 
     # Remove InferaDB Docker images
-    if docker images | grep -q "inferadb-server:local"; then
-        log_info "Removing inferadb-server:local image..."
-        docker rmi inferadb-server:local 2>/dev/null || log_warn "Could not remove inferadb-server:local"
+    if docker images | grep -q "inferadb-engine:local"; then
+        log_info "Removing inferadb-engine:local image..."
+        docker rmi inferadb-engine:local 2>/dev/null || log_warn "Could not remove inferadb-engine:local"
     fi
 
-    if docker images | grep -q "inferadb-management:local"; then
-        log_info "Removing inferadb-management:local image..."
-        docker rmi inferadb-management:local 2>/dev/null || log_warn "Could not remove inferadb-management:local"
+    if docker images | grep -q "inferadb-control:local"; then
+        log_info "Removing inferadb-control:local image..."
+        docker rmi inferadb-control:local 2>/dev/null || log_warn "Could not remove inferadb-control:local"
     fi
 
     # Prune unused Docker resources related to kind
