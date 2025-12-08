@@ -380,12 +380,31 @@ spec:
         - name: fdb-cluster-file
           mountPath: /var/fdb
           readOnly: true
+        # Health probes (Kubernetes conventions: /livez, /readyz, /startupz)
+        livenessProbe:
+          httpGet:
+            path: /livez
+            port: 9090
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
         readinessProbe:
           httpGet:
-            path: /health
+            path: /readyz
             port: 9090
           initialDelaySeconds: 5
           periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        startupProbe:
+          httpGet:
+            path: /startupz
+            port: 9090
+          initialDelaySeconds: 0
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 30
       volumes:
       - name: fdb-cluster-file
         configMap:
@@ -511,12 +530,31 @@ spec:
         - name: fdb-cluster-file
           mountPath: /var/fdb
           readOnly: true
+        # Health probes (Kubernetes conventions: /livez, /readyz, /startupz)
+        livenessProbe:
+          httpGet:
+            path: /livez
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
         readinessProbe:
           httpGet:
-            path: /health/ready
+            path: /readyz
             port: 8080
           initialDelaySeconds: 5
           periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        startupProbe:
+          httpGet:
+            path: /startupz
+            port: 8080
+          initialDelaySeconds: 0
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 30
       volumes:
       - name: fdb-cluster-file
         configMap:
