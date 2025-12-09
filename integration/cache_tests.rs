@@ -192,8 +192,7 @@ async fn test_management_api_call_rate() {
     let final_metrics = get_auth_metrics(&fixture.ctx).await;
 
     if let (Some(initial), Some(final_metrics)) = (initial_metrics, final_metrics) {
-        let control_calls =
-            final_metrics.control_calls - initial.control_calls;
+        let control_calls = final_metrics.control_calls - initial.control_calls;
         let api_call_rate = (control_calls as f64 / num_requests as f64) * 100.0;
 
         println!(
@@ -203,10 +202,7 @@ async fn test_management_api_call_rate() {
 
         // Control call rate should be <10% with effective caching
         if api_call_rate > 10.0 {
-            eprintln!(
-                "Warning: High control call rate ({:.1}%) - expected <10%",
-                api_call_rate
-            );
+            eprintln!("Warning: High control call rate ({:.1}%) - expected <10%", api_call_rate);
         }
     } else {
         println!("⚠ Metrics endpoint not available - skipping API call rate check");
@@ -265,8 +261,7 @@ struct AuthMetrics {
 
 // Helper function to fetch and parse auth metrics (from internal port)
 async fn get_auth_metrics(ctx: &TestContext) -> Option<AuthMetrics> {
-    let response =
-        ctx.client.get(format!("{}/metrics", ctx.engine_mesh_url)).send().await.ok()?;
+    let response = ctx.client.get(format!("{}/metrics", ctx.engine_mesh_url)).send().await.ok()?;
 
     if !response.status().is_success() {
         return None;
@@ -274,8 +269,7 @@ async fn get_auth_metrics(ctx: &TestContext) -> Option<AuthMetrics> {
 
     let metrics_text = response.text().await.ok()?;
 
-    let control_calls =
-        parse_metric(&metrics_text, "infera_auth_control_calls_total");
+    let control_calls = parse_metric(&metrics_text, "infera_auth_control_calls_total");
     let cache_hits = parse_metric(&metrics_text, "infera_auth_cache_hits_total");
     let cache_misses = parse_metric(&metrics_text, "infera_auth_cache_misses_total");
 

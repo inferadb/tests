@@ -18,8 +18,8 @@ use uuid::Uuid;
 mod auth_jwt_tests;
 mod cache_tests;
 mod concurrency_tests;
-mod e2e_workflows_tests;
 mod control_integration_tests;
+mod e2e_workflows_tests;
 mod resilience_tests;
 mod vault_isolation_tests;
 
@@ -631,10 +631,7 @@ impl Drop for TestFixture {
         tokio::spawn(async move {
             let _ = ctx
                 .client
-                .delete(format!(
-                    "{}/v1/organizations/{}/vaults/{}",
-                    control_url, org_id, vault_id
-                ))
+                .delete(format!("{}/v1/organizations/{}/vaults/{}", control_url, org_id, vault_id))
                 .header("Authorization", format!("Bearer {}", session_id))
                 .send()
                 .await;
