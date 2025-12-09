@@ -4,8 +4,8 @@
 #
 # This script creates a kind cluster and deploys all InferaDB components:
 # - FoundationDB
-# - Management API (with Kubernetes service discovery)
-# - Server (with Kubernetes service discovery)
+# - Control (with Kubernetes service discovery)
+# - Engine (with Kubernetes service discovery)
 #
 
 set -euo pipefail
@@ -43,18 +43,18 @@ show_status() {
     echo ""
 
     log_info "Access URLs:"
-    echo "  Server:      http://localhost:8080"
-    echo "  Management:  http://localhost:3000"
+    echo "  Engine:   http://localhost:8080"
+    echo "  Control:  http://localhost:9090"
     echo ""
 
     log_info "Useful Commands:"
-    echo "  # Watch server logs (look for discovery messages)"
+    echo "  # Watch engine logs (look for discovery messages)"
     echo "  kubectl logs -f deployment/inferadb-engine -n ${NAMESPACE} | grep -i discovery"
     echo ""
-    echo "  # Watch management logs"
+    echo "  # Watch control logs"
     echo "  kubectl logs -f deployment/inferadb-control -n ${NAMESPACE} | grep -i discovery"
     echo ""
-    echo "  # Scale management and watch server discover new endpoints"
+    echo "  # Scale control and watch engine discover new endpoints"
     echo "  kubectl scale deployment/inferadb-control --replicas=4 -n ${NAMESPACE}"
     echo ""
     echo "  # Update deployment with new changes"

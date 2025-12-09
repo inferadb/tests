@@ -76,21 +76,197 @@ update_rbac() {
     log_info "RBAC updated ✓"
 }
 
-restart_deployments() {
-    log_info "Restarting deployments to use new images..."
+update_deployments() {
+    log_info "Updating deployment manifests..."
 
-    # Restart management API
-    kubectl rollout restart deployment/inferadb-control -n "${NAMESPACE}"
-    log_info "Waiting for Management API rollout..."
-    kubectl rollout status deployment/inferadb-control -n "${NAMESPACE}" --timeout=120s
+    # Update Control deployment with latest env vars
+    kubectl apply -f - <<EOF
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inferadb-control
+  namespace: ${NAMESPACE}
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: inferadb-control
+  template:
+    metadata:
+      labels:
+        app: inferadb-control
+    spec:
+      serviceAccountName: inferadb-control
+      containers:
+      - name: control-api
+        image: ${CONTROL_IMAGE}
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 9090
+          name: public
+        - containerPort: 9091
+          name: grpc
+        - containerPort: 9092
+          name: internal
+        env:
+        - name: RUST_LOG
+          value: "info,inferadb_control_core=debug,inferadb_discovery=debug"
+        - name: INFERADB__CONTROL__LISTEN__HTTP
+          value: "0.0.0.0:9090"
+        - name: INFERADB__CONTROL__LISTEN__GRPC
+          value: "0.0.0.0:9091"
+        - name: INFERADB__CONTROL__LISTEN__MESH
+          value: "0.0.0.0:9092"
+        - name: INFERADB__CONTROL__STORAGE
+          value: "foundationdb"
+        - name: INFERADB__CONTROL__FOUNDATIONDB__CLUSTER_FILE
+          value: "/var/fdb/fdb.cluster"
+        - name: INFERADB__CONTROL__MESH__URL
+          value: "http://inferadb-engine"
+        - name: INFERADB__CONTROL__MESH__GRPC
+          value: "8080"
+        - name: INFERADB__CONTROL__MESH__PORT
+          value: "8082"
+        - name: INFERADB__CONTROL__DISCOVERY__MODE__TYPE
+          value: "kubernetes"
+        - name: INFERADB__CONTROL__DISCOVERY__CACHE_TTL
+          value: "30"
+        - name: KUBERNETES_NAMESPACE
+          value: "${NAMESPACE}"
+        - name: CONTROL_API_AUDIENCE
+          value: "http://inferadb-control:9092"
+        volumeMounts:
+        - name: fdb-cluster-file
+          mountPath: /var/fdb
+          readOnly: true
+        livenessProbe:
+          httpGet:
+            path: /livez
+            port: 9090
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 9090
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        startupProbe:
+          httpGet:
+            path: /startupz
+            port: 9090
+          initialDelaySeconds: 0
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 30
+      volumes:
+      - name: fdb-cluster-file
+        configMap:
+          name: foundationdb-cluster-file
+          items:
+          - key: fdb.cluster
+            path: fdb.cluster
+EOF
 
-    # Restart server
-    kubectl rollout restart deployment/inferadb-engine -n "${NAMESPACE}"
-    log_info "Waiting for Server rollout..."
-    kubectl rollout status deployment/inferadb-engine -n "${NAMESPACE}" --timeout=120s
+    # Update Engine deployment with latest env vars
+    kubectl apply -f - <<EOF
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inferadb-engine
+  namespace: ${NAMESPACE}
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: inferadb-engine
+  template:
+    metadata:
+      labels:
+        app: inferadb-engine
+    spec:
+      serviceAccountName: inferadb-engine
+      containers:
+      - name: inferadb
+        image: ${SERVER_IMAGE}
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8080
+          name: public
+        - containerPort: 8081
+          name: grpc
+        - containerPort: 8082
+          name: internal
+        env:
+        - name: RUST_LOG
+          value: "info,inferadb_engine=debug,inferadb_discovery=debug"
+        - name: INFERADB__ENGINE__LISTEN__HTTP
+          value: "0.0.0.0:8080"
+        - name: INFERADB__ENGINE__LISTEN__GRPC
+          value: "0.0.0.0:8081"
+        - name: INFERADB__ENGINE__LISTEN__MESH
+          value: "0.0.0.0:8082"
+        - name: INFERADB__ENGINE__STORAGE
+          value: "foundationdb"
+        - name: INFERADB__ENGINE__FOUNDATIONDB__CLUSTER_FILE
+          value: "/var/fdb/fdb.cluster"
+        - name: INFERADB__ENGINE__MESH__URL
+          value: "http://inferadb-control:9092"
+        - name: INFERADB__ENGINE__DISCOVERY__MODE__TYPE
+          value: "kubernetes"
+        - name: INFERADB__ENGINE__DISCOVERY__CACHE_TTL
+          value: "30"
+        - name: KUBERNETES_NAMESPACE
+          value: "${NAMESPACE}"
+        - name: INFERADB__ENGINE__PEM
+          valueFrom:
+            secretKeyRef:
+              name: inferadb-engine-identity
+              key: server-identity.pem
+        volumeMounts:
+        - name: fdb-cluster-file
+          mountPath: /var/fdb
+          readOnly: true
+        livenessProbe:
+          httpGet:
+            path: /livez
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /readyz
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        startupProbe:
+          httpGet:
+            path: /startupz
+            port: 8080
+          initialDelaySeconds: 0
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 30
+      volumes:
+      - name: fdb-cluster-file
+        configMap:
+          name: foundationdb-cluster-file
+          items:
+          - key: fdb.cluster
+            path: fdb.cluster
+EOF
 
-    log_info "Deployments restarted ✓"
+    log_info "Deployments updated ✓"
 }
+
 
 show_status() {
     log_info "Current Deployment Status:"
@@ -98,12 +274,21 @@ show_status() {
     kubectl get pods -n "${NAMESPACE}"
     echo ""
 
-    log_info "Recent Server Logs:"
+    log_info "Recent Engine Logs:"
     kubectl logs deployment/inferadb-engine -n "${NAMESPACE}" --tail=10
     echo ""
 
-    log_info "Recent Management API Logs:"
+    log_info "Recent Control Logs:"
     kubectl logs deployment/inferadb-control -n "${NAMESPACE}" --tail=10
+}
+
+wait_for_deployments() {
+    log_info "Waiting for deployments to be ready..."
+
+    kubectl rollout status deployment/inferadb-control -n "${NAMESPACE}" --timeout=120s
+    kubectl rollout status deployment/inferadb-engine -n "${NAMESPACE}" --timeout=120s
+
+    log_info "Deployments ready ✓"
 }
 
 main() {
@@ -112,7 +297,8 @@ main() {
     check_cluster_exists
     build_and_load_images
     update_rbac
-    restart_deployments
+    update_deployments
+    wait_for_deployments
 
     log_info "Update complete! 🎉"
     echo ""

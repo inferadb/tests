@@ -52,7 +52,7 @@ async fn test_certificate_cache_hit_rate() {
 
     // Check if we can get metrics from server (metrics are on internal port 9090)
     let metrics_response =
-        fixture.ctx.client.get(format!("{}/metrics", fixture.ctx.server_internal_url)).send().await;
+        fixture.ctx.client.get(format!("{}/metrics", fixture.ctx.engine_mesh_url)).send().await;
 
     if let Ok(resp) = metrics_response {
         if resp.status().is_success() {
@@ -110,7 +110,7 @@ async fn test_vault_verification_cache() {
     // Generate JWT
     let jwt = fixture.generate_jwt(None, &["inferadb.check"]).expect("Failed to generate JWT");
 
-    // First request - should hit management API (cache miss)
+    // First request - should hit control (cache miss)
     let start_first = Instant::now();
     let first_response = fixture
         .call_server_evaluate(&jwt, "document:test", "viewer", "user:bob")
@@ -192,19 +192,19 @@ async fn test_management_api_call_rate() {
     let final_metrics = get_auth_metrics(&fixture.ctx).await;
 
     if let (Some(initial), Some(final_metrics)) = (initial_metrics, final_metrics) {
-        let management_api_calls =
-            final_metrics.management_api_calls - initial.management_api_calls;
-        let api_call_rate = (management_api_calls as f64 / num_requests as f64) * 100.0;
+        let control_calls =
+            final_metrics.control_calls - initial.control_calls;
+        let api_call_rate = (control_calls as f64 / num_requests as f64) * 100.0;
 
         println!(
-            "✓ Management API calls: {} out of {} requests ({:.1}%)",
-            management_api_calls, num_requests, api_call_rate
+            "✓ Control calls: {} out of {} requests ({:.1}%)",
+            control_calls, num_requests, api_call_rate
         );
 
-        // Management API call rate should be <10% with effective caching
+        // Control call rate should be <10% with effective caching
         if api_call_rate > 10.0 {
             eprintln!(
-                "Warning: High management API call rate ({:.1}%) - expected <10%",
+                "Warning: High control call rate ({:.1}%) - expected <10%",
                 api_call_rate
             );
         }
@@ -256,7 +256,7 @@ async fn test_cache_expiration_behavior() {
 // Helper struct to hold metrics
 #[derive(Debug)]
 struct AuthMetrics {
-    management_api_calls: u64,
+    control_calls: u64,
     #[allow(dead_code)]
     cache_hits: u64,
     #[allow(dead_code)]
@@ -266,7 +266,7 @@ struct AuthMetrics {
 // Helper function to fetch and parse auth metrics (from internal port)
 async fn get_auth_metrics(ctx: &TestContext) -> Option<AuthMetrics> {
     let response =
-        ctx.client.get(format!("{}/metrics", ctx.server_internal_url)).send().await.ok()?;
+        ctx.client.get(format!("{}/metrics", ctx.engine_mesh_url)).send().await.ok()?;
 
     if !response.status().is_success() {
         return None;
@@ -274,12 +274,12 @@ async fn get_auth_metrics(ctx: &TestContext) -> Option<AuthMetrics> {
 
     let metrics_text = response.text().await.ok()?;
 
-    let management_api_calls =
-        parse_metric(&metrics_text, "infera_auth_management_api_calls_total");
+    let control_calls =
+        parse_metric(&metrics_text, "infera_auth_control_calls_total");
     let cache_hits = parse_metric(&metrics_text, "infera_auth_cache_hits_total");
     let cache_misses = parse_metric(&metrics_text, "infera_auth_cache_misses_total");
 
-    Some(AuthMetrics { management_api_calls, cache_hits, cache_misses })
+    Some(AuthMetrics { control_calls, cache_hits, cache_misses })
 }
 
 // Helper function to parse a metric value from Prometheus format

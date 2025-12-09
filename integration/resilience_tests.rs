@@ -1,6 +1,6 @@
-// Management API Failure Handling Tests
+// Control Failure Handling Tests
 //
-// Tests for validating server resilience when management API is unavailable
+// Tests for validating engine resilience when control is unavailable
 
 use reqwest::StatusCode;
 
@@ -43,8 +43,8 @@ async fn test_cached_data_allows_validation() {
 
     println!("✓ Multiple requests succeeded using cached data");
 
-    // Note: Testing actual management API failure would require:
-    // 1. Stopping the management API container
+    // Note: Testing actual control failure would require:
+    // 1. Stopping the control container
     // 2. Making requests (should work from cache)
     // 3. Waiting for cache to expire
     // 4. Making requests (should fail gracefully)
@@ -57,10 +57,10 @@ async fn test_cached_data_allows_validation() {
 async fn test_graceful_degradation_with_network_timeout() {
     let fixture = TestFixture::create().await.expect("Failed to create test fixture");
 
-    // Create a JWT with a non-existent kid (will cause management API lookup)
+    // Create a JWT with a non-existent kid (will cause control lookup)
     let now = Utc::now();
     let claims = ClientClaims {
-        iss: format!("{}/v1", fixture.ctx.management_url),
+        iss: format!("{}/v1", fixture.ctx.control_url),
         sub: format!("client:{}", fixture.client_id),
         aud: REQUIRED_AUDIENCE.to_string(),
         exp: (now + Duration::minutes(5)).timestamp(),
@@ -118,7 +118,7 @@ async fn test_server_continues_with_cached_certificates() {
     println!("✓ Certificate cached");
 
     // Make more requests - these should use cached certificate
-    // Even if management API becomes unavailable, these should still work
+    // Even if control becomes unavailable, these should still work
     for i in 0..10 {
         let response = fixture
             .call_server_evaluate(&jwt, &format!("doc:{}", i), "viewer", "user:alice")
@@ -166,7 +166,7 @@ async fn test_partial_cache_coverage() {
     let vault2_response: CreateVaultResponse = fixture
         .ctx
         .client
-        .post(format!("{}/v1/organizations/{}/vaults", fixture.ctx.management_url, fixture.org_id))
+        .post(format!("{}/v1/organizations/{}/vaults", fixture.ctx.control_url, fixture.org_id))
         .header("Authorization", format!("Bearer {}", fixture.session_id))
         .json(&vault2_req)
         .send()
@@ -185,7 +185,7 @@ async fn test_partial_cache_coverage() {
         .generate_jwt(Some(vault2_id), &["inferadb.check"])
         .expect("Failed to generate JWT for vault 2");
 
-    // Request with new vault (should require management API call)
+    // Request with new vault (should require control call)
     let response2 = fixture
         .call_server_evaluate(&jwt2, "document:2", "viewer", "user:alice")
         .await
@@ -203,7 +203,7 @@ async fn test_partial_cache_coverage() {
         .client
         .delete(format!(
             "{}/v1/organizations/{}/vaults/{}",
-            fixture.ctx.management_url, fixture.org_id, vault2_id
+            fixture.ctx.control_url, fixture.org_id, vault2_id
         ))
         .header("Authorization", format!("Bearer {}", fixture.session_id))
         .send()
@@ -219,7 +219,7 @@ async fn test_error_handling_for_invalid_responses() {
     // Test with malformed JWT (no kid)
     let now = Utc::now();
     let claims = ClientClaims {
-        iss: format!("{}/v1", fixture.ctx.management_url),
+        iss: format!("{}/v1", fixture.ctx.control_url),
         sub: format!("client:{}", fixture.client_id),
         aud: REQUIRED_AUDIENCE.to_string(),
         exp: (now + Duration::minutes(5)).timestamp(),
@@ -264,7 +264,7 @@ async fn test_concurrent_requests_with_mixed_cache_states() {
     for i in 0..20 {
         let jwt_clone = jwt.clone();
         let ctx = fixture.ctx.clone();
-        let server_url = fixture.ctx.server_url.clone();
+        let engine_url = fixture.ctx.engine_url.clone();
 
         let handle = tokio::spawn(async move {
             let mut evaluation = std::collections::HashMap::new();
@@ -276,7 +276,7 @@ async fn test_concurrent_requests_with_mixed_cache_states() {
             body.insert("evaluations", vec![evaluation]);
 
             ctx.client
-                .post(format!("{}/v1/evaluate", server_url))
+                .post(format!("{}/v1/evaluate", engine_url))
                 .header("Authorization", format!("Bearer {}", jwt_clone))
                 .json(&body)
                 .send()

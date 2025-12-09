@@ -1,6 +1,6 @@
 // JWT Authentication Flow Tests
 //
-// Tests for validating JWT-based authentication between server and management API
+// Tests for validating JWT-based authentication between engine and control
 
 use reqwest::StatusCode;
 
@@ -68,7 +68,7 @@ async fn test_jwt_for_nonexistent_vault() {
         .await
         .expect("Failed to call server");
 
-    // Should fail with 404 Not Found (vault doesn't exist in management API)
+    // Should fail with 404 Not Found (vault doesn't exist in control)
     assert_eq!(
         response.status(),
         StatusCode::NOT_FOUND,
@@ -139,7 +139,7 @@ async fn test_jwt_with_expired_token() {
     // Generate JWT with past expiration (requires custom encoding)
     let now = Utc::now();
     let claims = ClientClaims {
-        iss: fixture.ctx.management_url.clone(),
+        iss: fixture.ctx.control_url.clone(),
         sub: format!("client:{}", fixture.client_id),
         aud: REQUIRED_AUDIENCE.to_string(),
         exp: (now - Duration::minutes(10)).timestamp(), // Expired 10 minutes ago
@@ -182,7 +182,7 @@ async fn test_jwt_with_invalid_kid() {
     // Generate JWT with fake kid
     let now = Utc::now();
     let claims = ClientClaims {
-        iss: format!("{}/v1", fixture.ctx.management_url),
+        iss: format!("{}/v1", fixture.ctx.control_url),
         sub: format!("client:{}", fixture.client_id),
         aud: REQUIRED_AUDIENCE.to_string(),
         exp: (now + Duration::minutes(5)).timestamp(),

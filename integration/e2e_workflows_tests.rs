@@ -23,7 +23,7 @@ async fn test_complete_user_journey() {
 
     let register_resp: RegisterResponse = ctx
         .client
-        .post(format!("{}/v1/auth/register", ctx.management_url))
+        .post(format!("{}/v1/auth/register", ctx.control_url))
         .json(&register_req)
         .send()
         .await
@@ -41,7 +41,7 @@ async fn test_complete_user_journey() {
 
     let login_resp: LoginResponse = ctx
         .client
-        .post(format!("{}/v1/auth/login/password", ctx.management_url))
+        .post(format!("{}/v1/auth/login/password", ctx.control_url))
         .json(&login_req)
         .send()
         .await
@@ -58,7 +58,7 @@ async fn test_complete_user_journey() {
     // 3. Get default organization
     let orgs_response: ListOrganizationsResponse = ctx
         .client
-        .get(format!("{}/v1/organizations", ctx.management_url))
+        .get(format!("{}/v1/organizations", ctx.control_url))
         .header("Authorization", format!("Bearer {}", session_id))
         .send()
         .await
@@ -80,7 +80,7 @@ async fn test_complete_user_journey() {
 
     let vault_resp: CreateVaultResponse = ctx
         .client
-        .post(format!("{}/v1/organizations/{}/vaults", ctx.management_url, org_id))
+        .post(format!("{}/v1/organizations/{}/vaults", ctx.control_url, org_id))
         .header("Authorization", format!("Bearer {}", session_id))
         .json(&vault_req)
         .send()
@@ -100,7 +100,7 @@ async fn test_complete_user_journey() {
 
     let client_resp: CreateClientResponse = ctx
         .client
-        .post(format!("{}/v1/organizations/{}/clients", ctx.management_url, org_id))
+        .post(format!("{}/v1/organizations/{}/clients", ctx.control_url, org_id))
         .header("Authorization", format!("Bearer {}", session_id))
         .json(&client_req)
         .send()
@@ -122,7 +122,7 @@ async fn test_complete_user_journey() {
         .client
         .post(format!(
             "{}/v1/organizations/{}/clients/{}/certificates",
-            ctx.management_url, org_id, client_id
+            ctx.control_url, org_id, client_id
         ))
         .header("Authorization", format!("Bearer {}", session_id))
         .json(&cert_req)
@@ -147,7 +147,7 @@ async fn test_complete_user_journey() {
     // 7. Generate JWT
     let now = Utc::now();
     let claims = ClientClaims {
-        iss: format!("{}/v1", ctx.management_url),
+        iss: format!("{}/v1", ctx.control_url),
         sub: format!("client:{}", client_id),
         aud: REQUIRED_AUDIENCE.to_string(),
         exp: (now + Duration::minutes(5)).timestamp(),
@@ -162,7 +162,7 @@ async fn test_complete_user_journey() {
     let mut header = Header::new(Algorithm::EdDSA);
     header.kid = Some(cert_resp.certificate.kid);
 
-    // Convert Ed25519 key to PEM format (matching Management API's approach)
+    // Convert Ed25519 key to PEM format (matching Control's approach)
     let secret_bytes = signing_key.to_bytes();
     let pem = ed25519_to_pem(&secret_bytes);
     let encoding_key = EncodingKey::from_ed_pem(&pem).expect("Failed to create encoding key");
@@ -180,7 +180,7 @@ async fn test_complete_user_journey() {
 
     let write_resp = ctx
         .client
-        .post(format!("{}/v1/relationships/write", ctx.server_url))
+        .post(format!("{}/v1/relationships/write", ctx.engine_url))
         .header("Authorization", format!("Bearer {}", jwt))
         .json(&write_body)
         .send()
@@ -201,7 +201,7 @@ async fn test_complete_user_journey() {
 
     let eval_resp = ctx
         .client
-        .post(format!("{}/v1/evaluate", ctx.server_url))
+        .post(format!("{}/v1/evaluate", ctx.engine_url))
         .header("Authorization", format!("Bearer {}", jwt))
         .json(&eval_body)
         .send()
@@ -238,7 +238,7 @@ async fn test_multi_tenant_isolation() {
                 body.insert("relationships", vec![relationship]);
 
                 ctx.client
-                    .post(format!("{}/v1/relationships/write", ctx.server_url))
+                    .post(format!("{}/v1/relationships/write", ctx.engine_url))
                     .header("Authorization", format!("Bearer {}", jwt))
                     .json(&body)
                     .send()
@@ -261,7 +261,7 @@ async fn test_multi_tenant_isolation() {
                 body.insert("relationships", vec![relationship]);
 
                 ctx.client
-                    .post(format!("{}/v1/relationships/write", ctx.server_url))
+                    .post(format!("{}/v1/relationships/write", ctx.engine_url))
                     .header("Authorization", format!("Bearer {}", jwt))
                     .json(&body)
                     .send()
@@ -284,7 +284,7 @@ async fn test_multi_tenant_isolation() {
                 body.insert("relationships", vec![relationship]);
 
                 ctx.client
-                    .post(format!("{}/v1/relationships/write", ctx.server_url))
+                    .post(format!("{}/v1/relationships/write", ctx.engine_url))
                     .header("Authorization", format!("Bearer {}", jwt))
                     .json(&body)
                     .send()
@@ -308,7 +308,7 @@ async fn test_multi_tenant_isolation() {
     let response1 = fixture1
         .ctx
         .client
-        .post(format!("{}/v1/evaluate", fixture1.ctx.server_url))
+        .post(format!("{}/v1/evaluate", fixture1.ctx.engine_url))
         .header("Authorization", format!("Bearer {}", jwt1))
         .json(&HashMap::from([(
             "evaluations",

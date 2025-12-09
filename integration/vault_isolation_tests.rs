@@ -21,7 +21,7 @@ async fn test_cross_vault_read_protection() {
     let vault_b_response: CreateVaultResponse = fixture
         .ctx
         .client
-        .post(format!("{}/v1/organizations/{}/vaults", fixture.ctx.management_url, fixture.org_id))
+        .post(format!("{}/v1/organizations/{}/vaults", fixture.ctx.control_url, fixture.org_id))
         .header("Authorization", format!("Bearer {}", fixture.session_id))
         .json(&vault_req)
         .send()
@@ -50,7 +50,7 @@ async fn test_cross_vault_read_protection() {
     let write_response = fixture
         .ctx
         .client
-        .post(format!("{}/v1/relationships/write", fixture.ctx.server_url))
+        .post(format!("{}/v1/relationships/write", fixture.ctx.engine_url))
         .header("Authorization", format!("Bearer {}", jwt_vault_a))
         .json(&write_body)
         .send()
@@ -71,7 +71,7 @@ async fn test_cross_vault_read_protection() {
     let read_response = fixture
         .ctx
         .client
-        .post(format!("{}/v1/evaluate", fixture.ctx.server_url))
+        .post(format!("{}/v1/evaluate", fixture.ctx.engine_url))
         .header("Authorization", format!("Bearer {}", jwt_vault_b))
         .json(&HashMap::from([(
             "evaluations",
@@ -97,7 +97,7 @@ async fn test_cross_vault_read_protection() {
         .client
         .delete(format!(
             "{}/v1/organizations/{}/vaults/{}",
-            fixture.ctx.management_url, fixture.org_id, vault_b_id
+            fixture.ctx.control_url, fixture.org_id, vault_b_id
         ))
         .header("Authorization", format!("Bearer {}", fixture.session_id))
         .send()
@@ -127,7 +127,7 @@ async fn test_cross_org_isolation() {
     let write_response = fixture_a
         .ctx
         .client
-        .post(format!("{}/v1/relationships/write", fixture_a.ctx.server_url))
+        .post(format!("{}/v1/relationships/write", fixture_a.ctx.engine_url))
         .header("Authorization", format!("Bearer {}", jwt_a))
         .json(&write_body)
         .send()
@@ -144,7 +144,7 @@ async fn test_cross_org_isolation() {
     let read_response = fixture_b
         .ctx
         .client
-        .post(format!("{}/v1/evaluate", fixture_b.ctx.server_url))
+        .post(format!("{}/v1/evaluate", fixture_b.ctx.engine_url))
         .header("Authorization", format!("Bearer {}", jwt_b))
         .json(&HashMap::from([(
             "evaluations",
@@ -173,7 +173,7 @@ async fn test_account_ownership_validation() {
     let fake_organization_id: i64 = 888888888; // Fake Snowflake ID
     let now = Utc::now();
     let claims = ClientClaims {
-        iss: format!("{}/v1", fixture.ctx.management_url),
+        iss: format!("{}/v1", fixture.ctx.control_url),
         sub: format!("client:{}", fixture.client_id),
         aud: REQUIRED_AUDIENCE.to_string(),
         exp: (now + Duration::minutes(5)).timestamp(),
@@ -238,7 +238,7 @@ async fn test_vault_deletion_prevents_access() {
         .client
         .delete(format!(
             "{}/v1/organizations/{}/vaults/{}",
-            fixture.ctx.management_url, fixture.org_id, fixture.vault_id
+            fixture.ctx.control_url, fixture.org_id, fixture.vault_id
         ))
         .header("Authorization", format!("Bearer {}", fixture.session_id))
         .send()
@@ -282,7 +282,7 @@ async fn test_vault_deletion_prevents_access() {
         .client
         .delete(format!(
             "{}/v1/organizations/{}/clients/{}",
-            fixture.ctx.management_url, fixture.org_id, fixture.client_id
+            fixture.ctx.control_url, fixture.org_id, fixture.client_id
         ))
         .header("Authorization", format!("Bearer {}", fixture.session_id))
         .send()

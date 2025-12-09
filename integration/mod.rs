@@ -1,7 +1,7 @@
-// Integration tests for InferaDB server-management authentication
+// Integration tests for InferaDB engine-control authentication
 //
-// These tests validate end-to-end authentication flows between the server
-// and management API, including JWT authentication, vault isolation, and
+// These tests validate end-to-end authentication flows between the engine
+// and control, including JWT authentication, vault isolation, and
 // cross-service integration.
 
 use anyhow::{Context, Result};
@@ -19,7 +19,7 @@ mod auth_jwt_tests;
 mod cache_tests;
 mod concurrency_tests;
 mod e2e_workflows_tests;
-mod management_integration_tests;
+mod control_integration_tests;
 mod resilience_tests;
 mod vault_isolation_tests;
 
@@ -32,7 +32,7 @@ pub fn generate_signing_key() -> SigningKey {
 }
 
 /// Convert raw Ed25519 private key bytes (32 bytes) to PKCS#8 PEM format
-/// This matches what the Management API does for JWT signing
+/// This matches what Control does for JWT signing
 fn ed25519_to_pem(private_key: &[u8; 32]) -> Vec<u8> {
     // PKCS#8 v1 structure for Ed25519:
     // SEQUENCE {
@@ -70,29 +70,29 @@ fn ed25519_to_pem(private_key: &[u8; 32]) -> Vec<u8> {
 pub const REQUIRED_AUDIENCE: &str = "https://api.inferadb.com";
 
 /// Base URLs for services (from environment or defaults)
-pub fn management_api_url() -> String {
-    std::env::var("MANAGEMENT_API_URL").unwrap_or_else(|_| "http://management-api:9090".to_string())
+pub fn control_url() -> String {
+    std::env::var("CONTROL_URL").unwrap_or_else(|_| "http://inferadb-control:9090".to_string())
 }
 
-pub fn server_url() -> String {
-    std::env::var("SERVER_URL").unwrap_or_else(|_| "http://server:8080".to_string())
+pub fn engine_url() -> String {
+    std::env::var("ENGINE_URL").unwrap_or_else(|_| "http://inferadb-engine:8080".to_string())
 }
 
-pub fn server_grpc_url() -> String {
-    std::env::var("SERVER_GRPC_URL").unwrap_or_else(|_| "http://server:8081".to_string())
+pub fn engine_grpc_url() -> String {
+    std::env::var("ENGINE_GRPC_URL").unwrap_or_else(|_| "http://inferadb-engine:8081".to_string())
 }
 
-pub fn server_internal_url() -> String {
-    std::env::var("SERVER_INTERNAL_URL").unwrap_or_else(|_| "http://server:8082".to_string())
+pub fn engine_mesh_url() -> String {
+    std::env::var("ENGINE_MESH_URL").unwrap_or_else(|_| "http://inferadb-engine:8082".to_string())
 }
 
 /// Test context containing all necessary state for integration tests
 #[derive(Clone)]
 pub struct TestContext {
     pub client: Client,
-    pub management_url: String,
-    pub server_url: String,
-    pub server_internal_url: String,
+    pub control_url: String,
+    pub engine_url: String,
+    pub engine_mesh_url: String,
 }
 
 impl Default for TestContext {
@@ -103,9 +103,9 @@ impl Default for TestContext {
                 .timeout(std::time::Duration::from_secs(30))
                 .build()
                 .expect("Failed to create HTTP client"),
-            management_url: management_api_url(),
-            server_url: server_url(),
-            server_internal_url: server_internal_url(),
+            control_url: control_url(),
+            engine_url: engine_url(),
+            engine_mesh_url: engine_mesh_url(),
         }
     }
 }
@@ -267,7 +267,7 @@ pub struct CertificateInfo {
 }
 
 /// JWT claims for client authentication
-/// Matches the Management API specification (see management/docs/Authentication.md)
+/// Matches the Control specification (see control/docs/Authentication.md)
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ClientClaims {
     pub iss: String,
@@ -312,7 +312,7 @@ impl TestFixture {
 
         let response = ctx
             .client
-            .post(format!("{}/v1/auth/register", ctx.management_url))
+            .post(format!("{}/v1/auth/register", ctx.control_url))
             .json(&register_req)
             .send()
             .await
@@ -335,7 +335,7 @@ impl TestFixture {
 
         let login_response = ctx
             .client
-            .post(format!("{}/v1/auth/login/password", ctx.management_url))
+            .post(format!("{}/v1/auth/login/password", ctx.control_url))
             .json(&login_req)
             .send()
             .await
@@ -358,7 +358,7 @@ impl TestFixture {
         // Get default organization (created during registration)
         let orgs_response: ListOrganizationsResponse = ctx
             .client
-            .get(format!("{}/v1/organizations", ctx.management_url))
+            .get(format!("{}/v1/organizations", ctx.control_url))
             .header("Authorization", format!("Bearer {}", session_id))
             .send()
             .await
@@ -380,7 +380,7 @@ impl TestFixture {
 
         let create_vault_resp: CreateVaultResponse = ctx
             .client
-            .post(format!("{}/v1/organizations/{}/vaults", ctx.management_url, org_id))
+            .post(format!("{}/v1/organizations/{}/vaults", ctx.control_url, org_id))
             .header("Authorization", format!("Bearer {}", session_id))
             .json(&vault_req)
             .send()
@@ -399,7 +399,7 @@ impl TestFixture {
 
         let create_client_resp: CreateClientResponse = ctx
             .client
-            .post(format!("{}/v1/organizations/{}/clients", ctx.management_url, org_id))
+            .post(format!("{}/v1/organizations/{}/clients", ctx.control_url, org_id))
             .header("Authorization", format!("Bearer {}", session_id))
             .json(&client_req)
             .send()
@@ -421,7 +421,7 @@ impl TestFixture {
             .client
             .post(format!(
                 "{}/v1/organizations/{}/clients/{}/certificates",
-                ctx.management_url, org_id, client_id
+                ctx.control_url, org_id, client_id
             ))
             .header("Authorization", format!("Bearer {}", session_id))
             .json(&cert_req)
@@ -466,7 +466,7 @@ impl TestFixture {
     pub fn generate_jwt(&self, vault_id: Option<i64>, scopes: &[&str]) -> Result<String> {
         let now = Utc::now();
 
-        // Determine vault_role based on scopes (following management API convention)
+        // Determine vault_role based on scopes (following control convention)
         let vault_role = if scopes.contains(&"inferadb.admin") {
             "admin"
         } else if scopes.contains(&"inferadb.vault.manage") {
@@ -486,7 +486,7 @@ impl TestFixture {
         };
 
         let claims = ClientClaims {
-            iss: self.ctx.management_url.clone(),
+            iss: self.ctx.control_url.clone(),
             sub: format!("client:{}", self.client_id),
             aud: REQUIRED_AUDIENCE.to_string(), // Use hardcoded audience
             exp: (now + Duration::minutes(5)).timestamp(),
@@ -516,7 +516,7 @@ impl TestFixture {
         let now = Utc::now();
 
         let claims = ClientClaims {
-            iss: self.ctx.management_url.clone(),
+            iss: self.ctx.control_url.clone(),
             sub: format!("client:{}", self.client_id),
             aud: REQUIRED_AUDIENCE.to_string(), // Use hardcoded audience
             exp: (now + Duration::minutes(5)).timestamp(),
@@ -561,7 +561,7 @@ impl TestFixture {
 
         self.ctx
             .client
-            .post(format!("{}/v1/evaluate", self.ctx.server_url))
+            .post(format!("{}/v1/evaluate", self.ctx.engine_url))
             .header("Authorization", format!("Bearer {}", jwt))
             .json(&body)
             .send()
@@ -577,7 +577,7 @@ impl TestFixture {
             .client
             .delete(format!(
                 "{}/v1/organizations/{}/vaults/{}",
-                self.ctx.management_url, self.org_id, self.vault_id
+                self.ctx.control_url, self.org_id, self.vault_id
             ))
             .header("Authorization", format!("Bearer {}", self.session_id))
             .send()
@@ -589,7 +589,7 @@ impl TestFixture {
             .client
             .delete(format!(
                 "{}/v1/organizations/{}/clients/{}",
-                self.ctx.management_url, self.org_id, self.client_id
+                self.ctx.control_url, self.org_id, self.client_id
             ))
             .header("Authorization", format!("Bearer {}", self.session_id))
             .send()
@@ -599,7 +599,7 @@ impl TestFixture {
         let _ = self
             .ctx
             .client
-            .delete(format!("{}/v1/organizations/{}", self.ctx.management_url, self.org_id))
+            .delete(format!("{}/v1/organizations/{}", self.ctx.control_url, self.org_id))
             .header("Authorization", format!("Bearer {}", self.session_id))
             .send()
             .await;
@@ -608,7 +608,7 @@ impl TestFixture {
         let _ = self
             .ctx
             .client
-            .delete(format!("{}/v1/users/{}", self.ctx.management_url, self.user_id))
+            .delete(format!("{}/v1/users/{}", self.ctx.control_url, self.user_id))
             .header("Authorization", format!("Bearer {}", self.session_id))
             .send()
             .await;
@@ -626,14 +626,14 @@ impl Drop for TestFixture {
         let org_id = self.org_id;
         let client_id = self.client_id;
         let user_id = self.user_id;
-        let management_url = self.ctx.management_url.clone();
+        let control_url = self.ctx.control_url.clone();
 
         tokio::spawn(async move {
             let _ = ctx
                 .client
                 .delete(format!(
                     "{}/v1/organizations/{}/vaults/{}",
-                    management_url, org_id, vault_id
+                    control_url, org_id, vault_id
                 ))
                 .header("Authorization", format!("Bearer {}", session_id))
                 .send()
@@ -643,7 +643,7 @@ impl Drop for TestFixture {
                 .client
                 .delete(format!(
                     "{}/v1/organizations/{}/clients/{}",
-                    management_url, org_id, client_id
+                    control_url, org_id, client_id
                 ))
                 .header("Authorization", format!("Bearer {}", session_id))
                 .send()
@@ -651,14 +651,14 @@ impl Drop for TestFixture {
 
             let _ = ctx
                 .client
-                .delete(format!("{}/v1/organizations/{}", management_url, org_id))
+                .delete(format!("{}/v1/organizations/{}", control_url, org_id))
                 .header("Authorization", format!("Bearer {}", session_id))
                 .send()
                 .await;
 
             let _ = ctx
                 .client
-                .delete(format!("{}/v1/users/{}", management_url, user_id))
+                .delete(format!("{}/v1/users/{}", control_url, user_id))
                 .header("Authorization", format!("Bearer {}", session_id))
                 .send()
                 .await;

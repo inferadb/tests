@@ -1,6 +1,6 @@
 # InferaDB Integration Tests
 
-End-to-end tests validating InferaDB Server and Management API in Kubernetes.
+End-to-end tests validating InferaDB Engine and Control in Kubernetes.
 
 ## Quick Commands
 
@@ -31,7 +31,7 @@ cargo +nightly fmt --all
 | `cache_tests`                  | 4     | Hit/miss patterns, expiration, concurrent load |
 | `concurrency_tests`            | 5     | Parallel requests, race conditions             |
 | `e2e_workflows_tests`          | 2     | User journeys from registration to authz       |
-| `management_integration_tests` | 5     | Org suspension, client deactivation            |
+| `control_integration_tests`    | 5     | Org suspension, client deactivation            |
 | `resilience_tests`             | 6     | Service recovery, graceful degradation         |
 
 ## Architecture
@@ -46,9 +46,9 @@ let fixture = TestFixture::create().await?;
 // Generate JWT with scopes
 let jwt = fixture.generate_jwt(None, &["inferadb.check"])?;
 
-// Call server endpoint
+// Call engine endpoint
 let response = fixture
-    .call_server_evaluate(&jwt, "document:1", "viewer", "user:alice")
+    .call_engine_evaluate(&jwt, "document:1", "viewer", "user:alice")
     .await?;
 
 fixture.cleanup().await?;
@@ -56,21 +56,22 @@ fixture.cleanup().await?;
 
 ### Environment Variables
 
-| Variable             | Default                 | Purpose                  |
-| -------------------- | ----------------------- | ------------------------ |
-| `SERVER_API_URL`     | `http://localhost:8080` | InferaDB Server endpoint |
-| `MANAGEMENT_API_URL` | `http://localhost:8081` | Management API endpoint  |
-| `TEST_TIMEOUT_SECS`  | `30`                    | Per-test timeout         |
+| Variable          | Default                        | Purpose               |
+| ----------------- | ------------------------------ | --------------------- |
+| `ENGINE_URL`      | `http://inferadb-engine:8080`  | Engine HTTP endpoint  |
+| `CONTROL_URL`     | `http://inferadb-control:9090` | Control HTTP endpoint |
+| `ENGINE_GRPC_URL` | `http://inferadb-engine:8081`  | Engine gRPC endpoint  |
+| `ENGINE_MESH_URL` | `http://inferadb-engine:8082`  | Engine mesh endpoint  |
 
 ### K8s Services
 
 Tests run against services in `inferadb` namespace:
 
-| Service        | Port | Purpose                 |
-| -------------- | ---- | ----------------------- |
-| Server API     | 8080 | Authorization endpoints |
-| Management API | 8081 | Tenant/vault management |
-| Metrics        | 9090 | Prometheus metrics      |
+| Service | Port | Purpose                 |
+| ------- | ---- | ----------------------- |
+| Engine  | 8080 | Authorization endpoints |
+| Control | 9090 | Tenant/vault management |
+| Metrics | 9090 | Prometheus metrics      |
 
 ## Writing Tests
 
@@ -86,7 +87,7 @@ async fn test_vault_isolation() {
     let jwt_b = fixture.generate_jwt(Some(vault_b), &["inferadb.check"])?;
 
     // Verify isolation
-    let response = fixture.call_server_evaluate(&jwt_a, "doc:1", "view", "user:x").await?;
+    let response = fixture.call_engine_evaluate(&jwt_a, "doc:1", "view", "user:x").await?;
     assert_eq!(response.status(), StatusCode::OK);
 
     fixture.cleanup().await?;
@@ -99,8 +100,8 @@ async fn test_vault_isolation() {
 | ------------------------ | ------------------------- |
 | `create()`               | Initialize test context   |
 | `generate_jwt()`         | Create Ed25519-signed JWT |
-| `call_server_evaluate()` | Call /v1/check endpoint   |
-| `call_management_api()`  | Call Management API       |
+| `call_engine_evaluate()` | Call /v1/check endpoint   |
+| `call_control_api()`     | Call Control API          |
 | `cleanup()`              | Teardown test resources   |
 
 ## Critical Patterns
@@ -159,7 +160,7 @@ fixture.cleanup().await.expect("cleanup failed");
 | --------------------- | ------------------------------------------------------------------------------------- |
 | Services not starting | `kubectl get pods -n inferadb && kubectl logs -n inferadb deployment/inferadb-engine` |
 | Port conflicts        | `lsof -i :8080 -i :8081` or `make purge && make start`                                |
-| Tests timing out      | Increase `TEST_TIMEOUT_SECS`, check Docker RAM (4GB+)                                 |
+| Tests timing out      | Check Docker RAM (4GB+ recommended), check pod logs for errors                        |
 | Connection refused    | Restart port-forwarding: `make start`                                                 |
 
 ## Code Quality

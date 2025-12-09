@@ -4,8 +4,8 @@
 #
 # This script creates a kind cluster and deploys all InferaDB components:
 # - FoundationDB
-# - Management API (with Kubernetes service discovery)
-# - Server (with Kubernetes service discovery)
+# - Control (with Kubernetes service discovery)
+# - Engine (with Kubernetes service discovery)
 #
 
 set -euo pipefail
@@ -323,8 +323,8 @@ initialize_foundationdb() {
     return 0
 }
 
-deploy_management() {
-    log_info "Deploying Management API..."
+deploy_control() {
+    log_info "Deploying Control..."
 
     kubectl apply -f - <<EOF
 apiVersion: apps/v1
@@ -357,23 +357,33 @@ spec:
         env:
         - name: RUST_LOG
           value: "info,inferadb_control_core=debug,inferadb_discovery=debug"
-        - name: INFERADB_CTRL__SERVER__PUBLIC_REST
+        # Listen configuration (control section)
+        - name: INFERADB__CONTROL__LISTEN__HTTP
           value: "0.0.0.0:9090"
-        - name: INFERADB_CTRL__SERVER__PUBLIC_GRPC
+        - name: INFERADB__CONTROL__LISTEN__GRPC
           value: "0.0.0.0:9091"
-        - name: INFERADB_CTRL__SERVER__PRIVATE_REST
+        - name: INFERADB__CONTROL__LISTEN__MESH
           value: "0.0.0.0:9092"
-        - name: INFERADB_CTRL__STORAGE__BACKEND
+        # Storage configuration
+        - name: INFERADB__CONTROL__STORAGE
           value: "foundationdb"
-        - name: INFERADB_CTRL__STORAGE__FDB_CLUSTER_FILE
+        - name: INFERADB__CONTROL__FOUNDATIONDB__CLUSTER_FILE
           value: "/var/fdb/fdb.cluster"
-        # Kubernetes discovery enabled via config.integration.yaml
-        - name: INFERADB_CTRL__SERVER_VERIFICATION__ENABLED
-          value: "true"
-        - name: INFERADB_CTRL__SERVER_VERIFICATION__SERVER_JWKS_URL
-          value: "http://inferadb-engine:8082/.well-known/jwks.json"
-        - name: INFERADB_CTRL__SERVER_VERIFICATION__CACHE_TTL_SECONDS
-          value: "300"
+        # Mesh configuration (how control connects to engine)
+        - name: INFERADB__CONTROL__MESH__URL
+          value: "http://inferadb-engine"
+        - name: INFERADB__CONTROL__MESH__GRPC
+          value: "8080"
+        - name: INFERADB__CONTROL__MESH__PORT
+          value: "8082"
+        # Service discovery
+        - name: INFERADB__CONTROL__DISCOVERY__MODE__TYPE
+          value: "kubernetes"
+        - name: INFERADB__CONTROL__DISCOVERY__CACHE_TTL
+          value: "30"
+        - name: KUBERNETES_NAMESPACE
+          value: "${NAMESPACE}"
+        # Audience for engine-to-control JWT auth (must match engine's MESH__URL)
         - name: CONTROL_API_AUDIENCE
           value: "http://inferadb-control:9092"
         volumeMounts:
@@ -433,18 +443,18 @@ spec:
   type: NodePort
 EOF
 
-    log_info "Waiting for Management API to be ready..."
+    log_info "Waiting for Control to be ready..."
     kubectl wait --for=condition=available deployment/inferadb-control -n "${NAMESPACE}" --timeout=120s
 
-    log_info "Management API deployed ✓"
+    log_info "Control deployed ✓"
 }
 
-deploy_server() {
-    log_info "Deploying Server..."
+deploy_engine() {
+    log_info "Deploying Engine..."
 
-    # Create server identity secret if it doesn't exist
+    # Create engine identity secret if it doesn't exist
     if ! kubectl get secret inferadb-engine-identity -n "${NAMESPACE}" &>/dev/null; then
-        log_info "Creating server identity secret..."
+        log_info "Creating engine identity secret..."
         kubectl create secret generic inferadb-engine-identity -n "${NAMESPACE}" \
             --from-literal=server-identity.pem="-----BEGIN PRIVATE KEY-----
 MC4CAQAwBQYDK2VwBCIEICBavKgCnA54kjkPsUVqz4K2or443E+EOQVU/yDZUWz3
@@ -481,47 +491,31 @@ spec:
           name: internal
         env:
         - name: RUST_LOG
-          value: "info,infera_discovery=debug,infera_auth=debug"
-        - name: INFERADB__SERVER__PUBLIC_REST
+          value: "info,inferadb_engine=debug,inferadb_discovery=debug"
+        # Listen configuration (engine section)
+        - name: INFERADB__ENGINE__LISTEN__HTTP
           value: "0.0.0.0:8080"
-        - name: INFERADB__SERVER__PUBLIC_GRPC
+        - name: INFERADB__ENGINE__LISTEN__GRPC
           value: "0.0.0.0:8081"
-        - name: INFERADB__SERVER__PRIVATE_REST
+        - name: INFERADB__ENGINE__LISTEN__MESH
           value: "0.0.0.0:8082"
-        - name: INFERADB__AUTH__ENABLED
-          value: "true"
-        # Management service discovery configuration
-        - name: INFERADB__CONTROL__SERVICE_URL
+        # Storage configuration
+        - name: INFERADB__ENGINE__STORAGE
+          value: "foundationdb"
+        - name: INFERADB__ENGINE__FOUNDATIONDB__CLUSTER_FILE
+          value: "/var/fdb/fdb.cluster"
+        # Mesh configuration (how engine connects to control)
+        - name: INFERADB__ENGINE__MESH__URL
           value: "http://inferadb-control:9092"
-        - name: INFERADB__CONTROL__INTERNAL_PORT
-          value: "9092"
-        # Auth configuration
-        - name: INFERADB__AUTH__JWKS_URL
-          value: "http://inferadb-control:9090"
-        - name: INFERADB__AUTH__JWKS_CACHE_TTL
-          value: "300"
-        - name: INFERADB__AUTH__MANAGEMENT_CACHE_TTL_SECONDS
-          value: "300"
-        - name: INFERADB__AUTH__CERT_CACHE_TTL_SECONDS
-          value: "900"
-        - name: INFERADB__AUTH__MANAGEMENT_VERIFY_VAULT_OWNERSHIP
-          value: "true"
-        - name: INFERADB__AUTH__MANAGEMENT_VERIFY_ORG_STATUS
-          value: "true"
         # Service discovery configuration
-        - name: INFERADB__DISCOVERY__MODE__TYPE
+        - name: INFERADB__ENGINE__DISCOVERY__MODE__TYPE
           value: "kubernetes"
+        - name: INFERADB__ENGINE__DISCOVERY__CACHE_TTL
+          value: "30"
         - name: KUBERNETES_NAMESPACE
           value: "${NAMESPACE}"
-        - name: INFERADB__DISCOVERY__CACHE_TTL_SECONDS
-          value: "30"
-        - name: INFERADB__STORE__BACKEND
-          value: "foundationdb"
-        - name: INFERADB__STORE__FDB_CLUSTER_FILE
-          value: "/var/fdb/fdb.cluster"
-        - name: INFERADB__STORE__CONNECTION_STRING
-          value: "foundationdb-cluster:4500"
-        - name: INFERADB__IDENTITY__PRIVATE_KEY_PEM
+        # Server identity for signing requests to control
+        - name: INFERADB__ENGINE__PEM
           valueFrom:
             secretKeyRef:
               name: inferadb-engine-identity
@@ -587,10 +581,10 @@ spec:
   type: NodePort
 EOF
 
-    log_info "Waiting for Server to be ready..."
+    log_info "Waiting for Engine to be ready..."
     kubectl wait --for=condition=available deployment/inferadb-engine -n "${NAMESPACE}" --timeout=120s
 
-    log_info "Server deployed ✓"
+    log_info "Engine deployed ✓"
 }
 
 show_status() {
@@ -602,18 +596,18 @@ show_status() {
     echo ""
 
     log_info "Access URLs:"
-    echo "  Server:      http://localhost:8080"
-    echo "  Management:  http://localhost:9090"
+    echo "  Engine:   http://localhost:8080"
+    echo "  Control:  http://localhost:9090"
     echo ""
 
     log_info "Useful Commands:"
-    echo "  # Watch server logs (look for discovery messages)"
+    echo "  # Watch engine logs (look for discovery messages)"
     echo "  kubectl logs -f deployment/inferadb-engine -n ${NAMESPACE} | grep -i discovery"
     echo ""
-    echo "  # Watch management logs"
+    echo "  # Watch control logs"
     echo "  kubectl logs -f deployment/inferadb-control -n ${NAMESPACE} | grep -i discovery"
     echo ""
-    echo "  # Scale management and watch server discover new endpoints"
+    echo "  # Scale control and watch engine discover new endpoints"
     echo "  kubectl scale deployment/inferadb-control --replicas=4 -n ${NAMESPACE}"
     echo ""
     echo "  # Update deployment with new changes"
@@ -637,8 +631,8 @@ main() {
     deploy_rbac
     deploy_foundationdb
     initialize_foundationdb
-    deploy_management
-    deploy_server
+    deploy_control
+    deploy_engine
 
     log_info "Setup complete! 🎉"
     echo ""

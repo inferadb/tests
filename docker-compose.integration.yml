@@ -1,11 +1,6 @@
 # Docker Compose for K8s Integration Tests
 # This runs only the test runner against a local kind cluster
-# The server and management API are deployed in Kubernetes
-
-networks:
-  host:
-    name: host
-    external: true
+# The Engine and Control are deployed in Kubernetes
 
 services:
   # Test runner - Executes integration tests against K8s cluster
@@ -14,14 +9,17 @@ services:
       context: ..
       dockerfile: tests/Dockerfile.integration
     container_name: inferadb-k8s-test-runner
-    network_mode: host
+    # Use bridge network so we can reach host via host.docker.internal (works on macOS/Windows)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
       - RUST_LOG=debug
       # Connect to K8s NodePort endpoints (mapped to host ports via kind extraPortMappings)
-      - MANAGEMENT_API_URL=http://localhost:9090
-      - SERVER_URL=http://localhost:8080
-      - SERVER_INTERNAL_URL=http://localhost:8082
-      - SERVER_GRPC_URL=http://localhost:8081
+      # Use host.docker.internal to reach the host machine from within Docker
+      - CONTROL_URL=http://host.docker.internal:9090
+      - ENGINE_URL=http://host.docker.internal:8080
+      - ENGINE_MESH_URL=http://host.docker.internal:8082
+      - ENGINE_GRPC_URL=http://host.docker.internal:8081
       - TEST_TIMEOUT=300
     volumes:
       - ../tests:/workspace/tests
