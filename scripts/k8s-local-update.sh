@@ -135,6 +135,17 @@ spec:
           value: "${NAMESPACE}"
         - name: CONTROL_API_AUDIENCE
           value: "http://inferadb-control:9092"
+        # Email configuration (using Mailpit for testing)
+        - name: INFERADB__CONTROL__EMAIL__HOST
+          value: "mailpit"
+        - name: INFERADB__CONTROL__EMAIL__PORT
+          value: "1025"
+        - name: INFERADB__CONTROL__EMAIL__ADDRESS
+          value: "test@inferadb.local"
+        - name: INFERADB__CONTROL__EMAIL__NAME
+          value: "InferaDB Test"
+        - name: INFERADB__CONTROL__EMAIL__INSECURE
+          value: "true"
         volumeMounts:
         - name: fdb-cluster-file
           mountPath: /var/fdb

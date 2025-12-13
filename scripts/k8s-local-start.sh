@@ -323,6 +323,61 @@ initialize_foundationdb() {
     return 0
 }
 
+deploy_mailpit() {
+    log_info "Deploying Mailpit (email catcher for testing)..."
+
+    kubectl apply -f - <<EOF
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mailpit
+  namespace: ${NAMESPACE}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mailpit
+  template:
+    metadata:
+      labels:
+        app: mailpit
+    spec:
+      containers:
+      - name: mailpit
+        image: axllent/mailpit:latest
+        ports:
+        - containerPort: 1025
+          name: smtp
+        - containerPort: 8025
+          name: http
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mailpit
+  namespace: ${NAMESPACE}
+spec:
+  selector:
+    app: mailpit
+  ports:
+  - name: smtp
+    port: 1025
+    targetPort: 1025
+  - name: http
+    port: 8025
+    targetPort: 8025
+    nodePort: 30025
+  type: NodePort
+EOF
+
+    log_info "Waiting for Mailpit to be ready..."
+    kubectl wait --for=condition=available deployment/mailpit -n "${NAMESPACE}" --timeout=60s
+
+    log_info "Mailpit deployed ✓"
+    log_info "  - SMTP: mailpit:1025 (internal)"
+    log_info "  - Web UI: http://localhost:30025"
+}
+
 deploy_control() {
     log_info "Deploying Control..."
 
@@ -386,6 +441,17 @@ spec:
         # Audience for engine-to-control JWT auth (must match engine's MESH__URL)
         - name: CONTROL_API_AUDIENCE
           value: "http://inferadb-control:9092"
+        # Email configuration (using Mailpit for testing)
+        - name: INFERADB__CONTROL__EMAIL__HOST
+          value: "mailpit"
+        - name: INFERADB__CONTROL__EMAIL__PORT
+          value: "1025"
+        - name: INFERADB__CONTROL__EMAIL__ADDRESS
+          value: "test@inferadb.local"
+        - name: INFERADB__CONTROL__EMAIL__NAME
+          value: "InferaDB Test"
+        - name: INFERADB__CONTROL__EMAIL__INSECURE
+          value: "true"
         volumeMounts:
         - name: fdb-cluster-file
           mountPath: /var/fdb
@@ -598,6 +664,7 @@ show_status() {
     log_info "Access URLs:"
     echo "  Engine:   http://localhost:8080"
     echo "  Control:  http://localhost:9090"
+    echo "  Mailpit:  http://localhost:30025 (email web UI)"
     echo ""
 
     log_info "Useful Commands:"
@@ -631,6 +698,7 @@ main() {
     deploy_rbac
     deploy_foundationdb
     initialize_foundationdb
+    deploy_mailpit
     deploy_control
     deploy_engine
 
