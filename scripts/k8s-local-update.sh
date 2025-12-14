@@ -20,6 +20,7 @@ CLUSTER_NAME="${CLUSTER_NAME:-inferadb-local}"
 NAMESPACE="${NAMESPACE:-inferadb}"
 SERVER_IMAGE="${SERVER_IMAGE:-inferadb-engine:local}"
 CONTROL_IMAGE="${CONTROL_IMAGE:-inferadb-control:local}"
+DASHBOARD_IMAGE="${DASHBOARD_IMAGE:-inferadb-dashboard:local}"
 
 log_info() {
     echo -e "${GREEN}[INFO]${NC} $1"
@@ -59,11 +60,19 @@ build_and_load_images() {
         exit 1
     }
 
+    # Build dashboard
+    log_info "Building dashboard image..."
+    docker build -t "${DASHBOARD_IMAGE}" dashboard/ || {
+        log_error "Failed to build dashboard image"
+        exit 1
+    }
+
     log_info "Images built ✓"
 
     log_info "Loading images into kind cluster..."
     kind load docker-image "${SERVER_IMAGE}" --name "${CLUSTER_NAME}"
     kind load docker-image "${CONTROL_IMAGE}" --name "${CLUSTER_NAME}"
+    kind load docker-image "${DASHBOARD_IMAGE}" --name "${CLUSTER_NAME}"
     log_info "Images loaded ✓"
 }
 
@@ -275,6 +284,57 @@ spec:
             path: fdb.cluster
 EOF
 
+    # Update Dashboard deployment
+    kubectl apply -f - <<EOF
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inferadb-dashboard
+  namespace: ${NAMESPACE}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: inferadb-dashboard
+  template:
+    metadata:
+      labels:
+        app: inferadb-dashboard
+    spec:
+      containers:
+      - name: dashboard
+        image: ${DASHBOARD_IMAGE}
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 3000
+          name: http
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: HOST
+          value: "0.0.0.0"
+        - name: PORT
+          value: "3000"
+        - name: CONTROL_API_URL
+          value: "http://inferadb-control:9090"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+EOF
+
     log_info "Deployments updated ✓"
 }
 
@@ -298,6 +358,7 @@ wait_for_deployments() {
 
     kubectl rollout status deployment/inferadb-control -n "${NAMESPACE}" --timeout=120s
     kubectl rollout status deployment/inferadb-engine -n "${NAMESPACE}" --timeout=120s
+    kubectl rollout status deployment/inferadb-dashboard -n "${NAMESPACE}" --timeout=120s
 
     log_info "Deployments ready ✓"
 }

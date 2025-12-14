@@ -21,6 +21,7 @@ CLUSTER_NAME="${CLUSTER_NAME:-inferadb-local}"
 NAMESPACE="${NAMESPACE:-inferadb}"
 SERVER_IMAGE="${SERVER_IMAGE:-inferadb-engine:local}"
 CONTROL_IMAGE="${CONTROL_IMAGE:-inferadb-control:local}"
+DASHBOARD_IMAGE="${DASHBOARD_IMAGE:-inferadb-dashboard:local}"
 
 log_info() {
     echo -e "${GREEN}[INFO]${NC} $1"
@@ -82,14 +83,14 @@ nodes:
   - containerPort: 30080
     hostPort: 8080
     protocol: TCP
-  - containerPort: 30081
-    hostPort: 3000
-    protocol: TCP
   - containerPort: 30090
     hostPort: 9090
     protocol: TCP
   - containerPort: 30091
     hostPort: 9091
+    protocol: TCP
+  - containerPort: 30030
+    hostPort: 3030
     protocol: TCP
 - role: worker
 - role: worker
@@ -122,6 +123,13 @@ build_images() {
         exit 1
     }
 
+    # Build dashboard
+    log_info "Building dashboard image..."
+    docker build -t "${DASHBOARD_IMAGE}" "${repo_root}/dashboard/" || {
+        log_error "Failed to build dashboard image"
+        exit 1
+    }
+
     log_info "Images built ✓"
 }
 
@@ -130,6 +138,7 @@ load_images() {
 
     kind load docker-image "${SERVER_IMAGE}" --name "${CLUSTER_NAME}"
     kind load docker-image "${CONTROL_IMAGE}" --name "${CLUSTER_NAME}"
+    kind load docker-image "${DASHBOARD_IMAGE}" --name "${CLUSTER_NAME}"
 
     log_info "Images loaded ✓"
 }
@@ -653,6 +662,81 @@ EOF
     log_info "Engine deployed ✓"
 }
 
+deploy_dashboard() {
+    log_info "Deploying Dashboard..."
+
+    kubectl apply -f - <<EOF
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: inferadb-dashboard
+  namespace: ${NAMESPACE}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: inferadb-dashboard
+  template:
+    metadata:
+      labels:
+        app: inferadb-dashboard
+    spec:
+      containers:
+      - name: dashboard
+        image: ${DASHBOARD_IMAGE}
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 3000
+          name: http
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: HOST
+          value: "0.0.0.0"
+        - name: PORT
+          value: "3000"
+        # Control API URL - within the K8s cluster
+        - name: CONTROL_API_URL
+          value: "http://inferadb-control:9090"
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: inferadb-dashboard
+  namespace: ${NAMESPACE}
+spec:
+  selector:
+    app: inferadb-dashboard
+  ports:
+  - name: http
+    port: 3000
+    targetPort: 3000
+    nodePort: 30030
+  type: NodePort
+EOF
+
+    log_info "Waiting for Dashboard to be ready..."
+    kubectl wait --for=condition=available deployment/inferadb-dashboard -n "${NAMESPACE}" --timeout=120s
+
+    log_info "Dashboard deployed ✓"
+}
+
 show_status() {
     log_info "Deployment Status:"
     echo ""
@@ -662,9 +746,10 @@ show_status() {
     echo ""
 
     log_info "Access URLs:"
-    echo "  Engine:   http://localhost:8080"
-    echo "  Control:  http://localhost:9090"
-    echo "  Mailpit:  http://localhost:30025 (email web UI)"
+    echo "  Dashboard: http://localhost:3030"
+    echo "  Engine:    http://localhost:8080"
+    echo "  Control:   http://localhost:9090"
+    echo "  Mailpit:   http://localhost:30025 (email web UI)"
     echo ""
 
     log_info "Useful Commands:"
@@ -701,6 +786,7 @@ main() {
     deploy_mailpit
     deploy_control
     deploy_engine
+    deploy_dashboard
 
     log_info "Setup complete! 🎉"
     echo ""
