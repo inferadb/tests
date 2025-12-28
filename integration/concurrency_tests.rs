@@ -23,7 +23,6 @@ async fn test_concurrent_authentication_single_client() {
     for i in 0..100 {
         let jwt_clone = Arc::clone(&jwt);
         let ctx = fixture.ctx.clone();
-        let engine_url = fixture.ctx.engine_url.clone();
 
         let handle = tokio::spawn(async move {
             let body = serde_json::json!({
@@ -35,7 +34,7 @@ async fn test_concurrent_authentication_single_client() {
             });
 
             ctx.client
-                .post(format!("{}/v1/evaluate", engine_url))
+                .post(ctx.engine_url("/evaluate"))
                 .header("Authorization", format!("Bearer {}", jwt_clone))
                 .json(&body)
                 .send()
@@ -111,7 +110,6 @@ async fn test_concurrent_authentication_multiple_clients() {
     for (i, (fixture, jwt)) in fixtures.iter().zip(jwts.iter()).enumerate() {
         let jwt_clone = jwt.clone();
         let ctx = fixture.ctx.clone();
-        let engine_url = fixture.ctx.engine_url.clone();
 
         let handle = tokio::spawn(async move {
             let body = serde_json::json!({
@@ -123,7 +121,7 @@ async fn test_concurrent_authentication_multiple_clients() {
             });
 
             ctx.client
-                .post(format!("{}/v1/evaluate", engine_url))
+                .post(ctx.engine_url("/evaluate"))
                 .header("Authorization", format!("Bearer {}", jwt_clone))
                 .json(&body)
                 .send()
@@ -175,7 +173,6 @@ async fn test_concurrent_vault_operations() {
     for i in 0..50 {
         let jwt_clone = jwt.clone();
         let ctx = fixture.ctx.clone();
-        let engine_url = fixture.ctx.engine_url.clone();
 
         let handle = tokio::spawn(async move {
             let body = serde_json::json!({
@@ -187,7 +184,7 @@ async fn test_concurrent_vault_operations() {
             });
 
             ctx.client
-                .post(format!("{}/v1/relationships/write", engine_url))
+                .post(ctx.engine_url("/relationships/write"))
                 .header("Authorization", format!("Bearer {}", jwt_clone))
                 .json(&body)
                 .send()
@@ -202,7 +199,6 @@ async fn test_concurrent_vault_operations() {
     for i in 0..50 {
         let jwt_clone = jwt.clone();
         let ctx = fixture.ctx.clone();
-        let engine_url = fixture.ctx.engine_url.clone();
 
         let handle = tokio::spawn(async move {
             let body = serde_json::json!({
@@ -214,7 +210,7 @@ async fn test_concurrent_vault_operations() {
             });
 
             ctx.client
-                .post(format!("{}/v1/evaluate", engine_url))
+                .post(ctx.engine_url("/evaluate"))
                 .header("Authorization", format!("Bearer {}", jwt_clone))
                 .json(&body)
                 .send()
@@ -261,7 +257,6 @@ async fn test_cache_under_concurrent_load() {
     for i in 0..300 {
         let jwts_clone = Arc::clone(&jwts);
         let ctx = fixture.ctx.clone();
-        let engine_url = fixture.ctx.engine_url.clone();
 
         let handle = tokio::spawn(async move {
             // Rotate through JWTs
@@ -276,7 +271,7 @@ async fn test_cache_under_concurrent_load() {
             });
 
             ctx.client
-                .post(format!("{}/v1/evaluate", engine_url))
+                .post(ctx.engine_url("/evaluate"))
                 .header("Authorization", format!("Bearer {}", jwt))
                 .json(&body)
                 .send()
@@ -328,7 +323,6 @@ async fn test_concurrent_first_time_authentication() {
     for i in 0..50 {
         let jwt_clone = jwt.clone();
         let ctx = fixture.ctx.clone();
-        let engine_url = fixture.ctx.engine_url.clone();
 
         let handle = tokio::spawn(async move {
             let body = serde_json::json!({
@@ -340,7 +334,7 @@ async fn test_concurrent_first_time_authentication() {
             });
 
             ctx.client
-                .post(format!("{}/v1/evaluate", engine_url))
+                .post(ctx.engine_url("/evaluate"))
                 .header("Authorization", format!("Bearer {}", jwt_clone))
                 .json(&body)
                 .send()

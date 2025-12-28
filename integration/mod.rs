@@ -3,6 +3,14 @@
 // These tests validate end-to-end authentication flows between the engine
 // and control, including JWT authentication, vault isolation, and
 // cross-service integration.
+//
+// Tests run against a Tailscale-based dev environment deployed via:
+//   inferadb dev start
+//
+// The test infrastructure automatically discovers the API URL from
+// the local Tailscale CLI.
+
+use std::{process::Command, sync::OnceLock};
 
 use anyhow::{Context, Result};
 use base64::Engine;
@@ -69,30 +77,96 @@ fn ed25519_to_pem(private_key: &[u8; 32]) -> Vec<u8> {
 /// This MUST match the server's REQUIRED_AUDIENCE constant
 pub const REQUIRED_AUDIENCE: &str = "https://api.inferadb.com";
 
-/// Base URLs for services (from environment or defaults)
-pub fn control_url() -> String {
-    std::env::var("CONTROL_URL").unwrap_or_else(|_| "http://inferadb-control:9090".to_string())
+/// Cached API base URL discovered from Tailscale
+static API_BASE_URL: OnceLock<String> = OnceLock::new();
+
+/// Discover the tailnet domain from the local Tailscale CLI
+fn discover_tailnet() -> Result<String> {
+    let output = Command::new("tailscale")
+        .args(["status", "--json"])
+        .output()
+        .context("Failed to run 'tailscale status --json'. Is Tailscale installed and running?")?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        anyhow::bail!("Tailscale status failed: {}", stderr);
+    }
+
+    let status: serde_json::Value =
+        serde_json::from_slice(&output.stdout).context("Failed to parse Tailscale status JSON")?;
+
+    // Extract DNS name from Self.DNSName (e.g., "hostname.tail27bf77.ts.net.")
+    let dns_name = status
+        .get("Self")
+        .and_then(|s| s.get("DNSName"))
+        .and_then(|d| d.as_str())
+        .context("Could not find DNSName in Tailscale status")?;
+
+    // Extract tailnet domain (everything after first dot, removing trailing dot)
+    // e.g., "hostname.tail27bf77.ts.net." -> "tail27bf77.ts.net"
+    let tailnet = dns_name.trim_end_matches('.').split('.').skip(1).collect::<Vec<_>>().join(".");
+
+    if tailnet.is_empty() {
+        anyhow::bail!("Could not extract tailnet from DNSName: {}", dns_name);
+    }
+
+    Ok(tailnet)
 }
 
-pub fn engine_url() -> String {
-    std::env::var("ENGINE_URL").unwrap_or_else(|_| "http://inferadb-engine:8080".to_string())
+/// Get the API base URL (discovers from Tailscale or uses environment override)
+pub fn api_base_url() -> String {
+    API_BASE_URL
+        .get_or_init(|| {
+            // Allow environment override for CI/testing
+            if let Ok(url) = std::env::var("INFERADB_API_URL") {
+                return url;
+            }
+
+            // Discover from Tailscale
+            match discover_tailnet() {
+                Ok(tailnet) => format!("https://inferadb-api.{}", tailnet),
+                Err(e) => {
+                    eprintln!("Warning: Could not discover Tailscale tailnet: {}", e);
+                    eprintln!("Falling back to localhost. Set INFERADB_API_URL to override.");
+                    "http://localhost:9090".to_string()
+                },
+            }
+        })
+        .clone()
 }
 
-pub fn engine_grpc_url() -> String {
-    std::env::var("ENGINE_GRPC_URL").unwrap_or_else(|_| "http://inferadb-engine:8081".to_string())
-}
+/// Validate that the dev environment is running and accessible
+pub async fn validate_environment() -> Result<()> {
+    let base_url = api_base_url();
+    let client = Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .danger_accept_invalid_certs(true) // For dev self-signed certs
+        .build()?;
 
-pub fn engine_mesh_url() -> String {
-    std::env::var("ENGINE_MESH_URL").unwrap_or_else(|_| "http://inferadb-engine:8082".to_string())
+    // Check health endpoint (routed to Control via ingress at /healthz)
+    let health_url = format!("{}/healthz", base_url);
+    let response = client
+        .get(&health_url)
+        .send()
+        .await
+        .context(format!("Failed to connect to API at {}. Is the dev environment running? Run: inferadb dev start", health_url))?;
+
+    if !response.status().is_success() {
+        anyhow::bail!(
+            "Health check failed with status {}. Is the dev environment healthy?",
+            response.status()
+        );
+    }
+
+    println!("Environment validated: {}", base_url);
+    Ok(())
 }
 
 /// Test context containing all necessary state for integration tests
 #[derive(Clone)]
 pub struct TestContext {
     pub client: Client,
-    pub control_url: String,
-    pub engine_url: String,
-    pub engine_mesh_url: String,
+    pub api_base_url: String,
 }
 
 impl Default for TestContext {
@@ -101,11 +175,10 @@ impl Default for TestContext {
             client: Client::builder()
                 .cookie_store(true)
                 .timeout(std::time::Duration::from_secs(30))
+                .danger_accept_invalid_certs(true) // For dev self-signed certs
                 .build()
                 .expect("Failed to create HTTP client"),
-            control_url: control_url(),
-            engine_url: engine_url(),
-            engine_mesh_url: engine_mesh_url(),
+            api_base_url: api_base_url(),
         }
     }
 }
@@ -113,6 +186,16 @@ impl Default for TestContext {
 impl TestContext {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Get Control API URL
+    pub fn control_url(&self, path: &str) -> String {
+        format!("{}/control/v1{}", self.api_base_url, path)
+    }
+
+    /// Get Engine (Access) API URL
+    pub fn engine_url(&self, path: &str) -> String {
+        format!("{}/access/v1{}", self.api_base_url, path)
     }
 }
 
@@ -169,8 +252,7 @@ pub struct OrganizationResponse {
 #[derive(Debug, Deserialize)]
 pub struct ListOrganizationsResponse {
     pub organizations: Vec<OrganizationResponse>,
-    pub pagination: Option<serde_json::Value>, /* We don't need to parse pagination metadata for
-                                                * tests */
+    pub pagination: Option<serde_json::Value>,
 }
 
 /// Vault creation request
@@ -312,7 +394,7 @@ impl TestFixture {
 
         let response = ctx
             .client
-            .post(format!("{}/v1/auth/register", ctx.control_url))
+            .post(ctx.control_url("/auth/register"))
             .json(&register_req)
             .send()
             .await
@@ -335,7 +417,7 @@ impl TestFixture {
 
         let login_response = ctx
             .client
-            .post(format!("{}/v1/auth/login/password", ctx.control_url))
+            .post(ctx.control_url("/auth/login/password"))
             .json(&login_req)
             .send()
             .await
@@ -358,7 +440,7 @@ impl TestFixture {
         // Get default organization (created during registration)
         let orgs_response: ListOrganizationsResponse = ctx
             .client
-            .get(format!("{}/v1/organizations", ctx.control_url))
+            .get(ctx.control_url("/organizations"))
             .header("Authorization", format!("Bearer {}", session_id))
             .send()
             .await
@@ -380,7 +462,7 @@ impl TestFixture {
 
         let create_vault_resp: CreateVaultResponse = ctx
             .client
-            .post(format!("{}/v1/organizations/{}/vaults", ctx.control_url, org_id))
+            .post(ctx.control_url(&format!("/organizations/{}/vaults", org_id)))
             .header("Authorization", format!("Bearer {}", session_id))
             .json(&vault_req)
             .send()
@@ -399,7 +481,7 @@ impl TestFixture {
 
         let create_client_resp: CreateClientResponse = ctx
             .client
-            .post(format!("{}/v1/organizations/{}/clients", ctx.control_url, org_id))
+            .post(ctx.control_url(&format!("/organizations/{}/clients", org_id)))
             .header("Authorization", format!("Bearer {}", session_id))
             .json(&client_req)
             .send()
@@ -419,10 +501,10 @@ impl TestFixture {
 
         let cert_resp: CertificateResponse = ctx
             .client
-            .post(format!(
-                "{}/v1/organizations/{}/clients/{}/certificates",
-                ctx.control_url, org_id, client_id
-            ))
+            .post(ctx.control_url(&format!(
+                "/organizations/{}/clients/{}/certificates",
+                org_id, client_id
+            )))
             .header("Authorization", format!("Bearer {}", session_id))
             .json(&cert_req)
             .send()
@@ -486,9 +568,9 @@ impl TestFixture {
         };
 
         let claims = ClientClaims {
-            iss: self.ctx.control_url.clone(),
+            iss: self.ctx.api_base_url.clone(),
             sub: format!("client:{}", self.client_id),
-            aud: REQUIRED_AUDIENCE.to_string(), // Use hardcoded audience
+            aud: REQUIRED_AUDIENCE.to_string(),
             exp: (now + Duration::minutes(5)).timestamp(),
             iat: now.timestamp(),
             jti: Uuid::new_v4().to_string(),
@@ -516,9 +598,9 @@ impl TestFixture {
         let now = Utc::now();
 
         let claims = ClientClaims {
-            iss: self.ctx.control_url.clone(),
+            iss: self.ctx.api_base_url.clone(),
             sub: format!("client:{}", self.client_id),
-            aud: REQUIRED_AUDIENCE.to_string(), // Use hardcoded audience
+            aud: REQUIRED_AUDIENCE.to_string(),
             exp: (now + Duration::minutes(5)).timestamp(),
             iat: now.timestamp(),
             jti: Uuid::new_v4().to_string(),
@@ -539,7 +621,7 @@ impl TestFixture {
         encode(&header, &claims, &encoding_key).context("Failed to encode invalid JWT")
     }
 
-    /// Call server evaluate endpoint with JWT
+    /// Call engine evaluate endpoint with JWT
     pub async fn call_server_evaluate(
         &self,
         jwt: &str,
@@ -561,7 +643,7 @@ impl TestFixture {
 
         self.ctx
             .client
-            .post(format!("{}/v1/evaluate", self.ctx.engine_url))
+            .post(self.ctx.engine_url("/evaluate"))
             .header("Authorization", format!("Bearer {}", jwt))
             .json(&body)
             .send()
@@ -572,34 +654,34 @@ impl TestFixture {
     /// Cleanup test resources
     pub async fn cleanup(&self) -> Result<()> {
         // Delete vault
-        let _ = self
-            .ctx
-            .client
-            .delete(format!(
-                "{}/v1/organizations/{}/vaults/{}",
-                self.ctx.control_url, self.org_id, self.vault_id
-            ))
-            .header("Authorization", format!("Bearer {}", self.session_id))
-            .send()
-            .await;
+        let _ =
+            self.ctx
+                .client
+                .delete(self.ctx.control_url(&format!(
+                    "/organizations/{}/vaults/{}",
+                    self.org_id, self.vault_id
+                )))
+                .header("Authorization", format!("Bearer {}", self.session_id))
+                .send()
+                .await;
 
         // Delete client
-        let _ = self
-            .ctx
-            .client
-            .delete(format!(
-                "{}/v1/organizations/{}/clients/{}",
-                self.ctx.control_url, self.org_id, self.client_id
-            ))
-            .header("Authorization", format!("Bearer {}", self.session_id))
-            .send()
-            .await;
+        let _ =
+            self.ctx
+                .client
+                .delete(self.ctx.control_url(&format!(
+                    "/organizations/{}/clients/{}",
+                    self.org_id, self.client_id
+                )))
+                .header("Authorization", format!("Bearer {}", self.session_id))
+                .send()
+                .await;
 
         // Delete organization
         let _ = self
             .ctx
             .client
-            .delete(format!("{}/v1/organizations/{}", self.ctx.control_url, self.org_id))
+            .delete(self.ctx.control_url(&format!("/organizations/{}", self.org_id)))
             .header("Authorization", format!("Bearer {}", self.session_id))
             .send()
             .await;
@@ -608,7 +690,7 @@ impl TestFixture {
         let _ = self
             .ctx
             .client
-            .delete(format!("{}/v1/users/{}", self.ctx.control_url, self.user_id))
+            .delete(self.ctx.control_url(&format!("/users/{}", self.user_id)))
             .header("Authorization", format!("Bearer {}", self.session_id))
             .send()
             .await;
@@ -626,39 +708,58 @@ impl Drop for TestFixture {
         let org_id = self.org_id;
         let client_id = self.client_id;
         let user_id = self.user_id;
-        let control_url = self.ctx.control_url.clone();
 
         tokio::spawn(async move {
             let _ = ctx
                 .client
-                .delete(format!("{}/v1/organizations/{}/vaults/{}", control_url, org_id, vault_id))
+                .delete(ctx.control_url(&format!("/organizations/{}/vaults/{}", org_id, vault_id)))
                 .header("Authorization", format!("Bearer {}", session_id))
                 .send()
                 .await;
 
             let _ = ctx
                 .client
-                .delete(format!(
-                    "{}/v1/organizations/{}/clients/{}",
-                    control_url, org_id, client_id
-                ))
+                .delete(
+                    ctx.control_url(&format!("/organizations/{}/clients/{}", org_id, client_id)),
+                )
                 .header("Authorization", format!("Bearer {}", session_id))
                 .send()
                 .await;
 
             let _ = ctx
                 .client
-                .delete(format!("{}/v1/organizations/{}", control_url, org_id))
+                .delete(ctx.control_url(&format!("/organizations/{}", org_id)))
                 .header("Authorization", format!("Bearer {}", session_id))
                 .send()
                 .await;
 
             let _ = ctx
                 .client
-                .delete(format!("{}/v1/users/{}", control_url, user_id))
+                .delete(ctx.control_url(&format!("/users/{}", user_id)))
                 .header("Authorization", format!("Bearer {}", session_id))
                 .send()
                 .await;
         });
     }
+}
+
+// Legacy compatibility functions (deprecated - use TestContext methods instead)
+#[deprecated(note = "Use TestContext::control_url() instead")]
+pub fn control_url() -> String {
+    api_base_url()
+}
+
+#[deprecated(note = "Use TestContext::engine_url() instead")]
+pub fn engine_url() -> String {
+    api_base_url()
+}
+
+#[deprecated(note = "No longer needed with unified Tailscale endpoint")]
+pub fn engine_grpc_url() -> String {
+    api_base_url()
+}
+
+#[deprecated(note = "No longer needed with unified Tailscale endpoint")]
+pub fn engine_mesh_url() -> String {
+    api_base_url()
 }

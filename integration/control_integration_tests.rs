@@ -30,7 +30,7 @@ async fn test_organization_status_check() {
     let suspend_response = fixture
         .ctx
         .client
-        .post(format!("{}/v1/organizations/{}/suspend", fixture.ctx.control_url, fixture.org_id))
+        .post(fixture.ctx.control_url(&format!("/organizations/{}/suspend", fixture.org_id)))
         .header("Authorization", format!("Bearer {}", fixture.session_id))
         .send()
         .await
@@ -97,7 +97,7 @@ async fn test_vault_deletion_propagation() {
     let write_response = fixture
         .ctx
         .client
-        .post(format!("{}/v1/relationships/write", fixture.ctx.engine_url))
+        .post(fixture.ctx.engine_url("/relationships/write"))
         .header("Authorization", format!("Bearer {}", jwt))
         .json(&write_body)
         .send()
@@ -107,19 +107,20 @@ async fn test_vault_deletion_propagation() {
     assert!(write_response.status().is_success(), "Failed to write data");
 
     // Delete vault via control
-    let delete_response = fixture
-        .ctx
-        .client
-        .delete(format!(
-            "{}/v1/organizations/{}/vaults/{}",
-            fixture.ctx.control_url, fixture.org_id, fixture.vault_id
-        ))
-        .header("Authorization", format!("Bearer {}", fixture.session_id))
-        .send()
-        .await
-        .expect("Failed to delete vault")
-        .error_for_status()
-        .expect("Vault deletion failed");
+    let delete_response =
+        fixture
+            .ctx
+            .client
+            .delete(fixture.ctx.control_url(&format!(
+                "/organizations/{}/vaults/{}",
+                fixture.org_id, fixture.vault_id
+            )))
+            .header("Authorization", format!("Bearer {}", fixture.session_id))
+            .send()
+            .await
+            .expect("Failed to delete vault")
+            .error_for_status()
+            .expect("Vault deletion failed");
 
     assert!(delete_response.status().is_success());
 
@@ -144,10 +145,10 @@ async fn test_vault_deletion_propagation() {
     let _ = fixture
         .ctx
         .client
-        .delete(format!(
-            "{}/v1/organizations/{}/clients/{}",
-            fixture.ctx.control_url, fixture.org_id, fixture.client_id
-        ))
+        .delete(fixture.ctx.control_url(&format!(
+            "/organizations/{}/clients/{}",
+            fixture.org_id, fixture.client_id
+        )))
         .header("Authorization", format!("Bearer {}", fixture.session_id))
         .send()
         .await;
@@ -180,10 +181,10 @@ async fn test_certificate_rotation() {
     let new_cert_resp: CertificateResponse = fixture
         .ctx
         .client
-        .post(format!(
-            "{}/v1/organizations/{}/clients/{}/certificates",
-            fixture.ctx.control_url, fixture.org_id, fixture.client_id
-        ))
+        .post(fixture.ctx.control_url(&format!(
+            "/organizations/{}/clients/{}/certificates",
+            fixture.org_id, fixture.client_id
+        )))
         .header("Authorization", format!("Bearer {}", fixture.session_id))
         .json(&new_cert_req)
         .send()
@@ -206,7 +207,7 @@ async fn test_certificate_rotation() {
     // Generate JWT with new certificate
     let now = Utc::now();
     let claims = ClientClaims {
-        iss: format!("{}/v1", fixture.ctx.control_url),
+        iss: fixture.ctx.api_base_url.clone(),
         sub: format!("client:{}", fixture.client_id),
         aud: REQUIRED_AUDIENCE.to_string(),
         exp: (now + Duration::minutes(5)).timestamp(),
@@ -230,7 +231,7 @@ async fn test_certificate_rotation() {
     let new_response = fixture
         .ctx
         .client
-        .post(format!("{}/v1/evaluate", fixture.ctx.engine_url))
+        .post(fixture.ctx.engine_url("/evaluate"))
         .header("Authorization", format!("Bearer {}", jwt_new))
         .json(&std::collections::HashMap::from([(
             "evaluations",
@@ -266,13 +267,10 @@ async fn test_certificate_rotation() {
     let _ = fixture
         .ctx
         .client
-        .delete(format!(
-            "{}/v1/organizations/{}/clients/{}/certificates/{}",
-            fixture.ctx.control_url,
-            fixture.org_id,
-            fixture.client_id,
-            new_cert_resp.certificate.id
-        ))
+        .delete(fixture.ctx.control_url(&format!(
+            "/organizations/{}/clients/{}/certificates/{}",
+            fixture.org_id, fixture.client_id, new_cert_resp.certificate.id
+        )))
         .header("Authorization", format!("Bearer {}", fixture.session_id))
         .send()
         .await;
@@ -303,10 +301,10 @@ async fn test_client_deactivation() {
     let deactivate_response = fixture
         .ctx
         .client
-        .post(format!(
-            "{}/v1/organizations/{}/clients/{}/deactivate",
-            fixture.ctx.control_url, fixture.org_id, fixture.client_id
-        ))
+        .post(fixture.ctx.control_url(&format!(
+            "/organizations/{}/clients/{}/deactivate",
+            fixture.org_id, fixture.client_id
+        )))
         .header("Authorization", format!("Bearer {}", fixture.session_id))
         .send()
         .await
@@ -380,10 +378,10 @@ async fn test_certificate_revocation() {
     let revoke_response = fixture
         .ctx
         .client
-        .delete(format!(
-            "{}/v1/organizations/{}/clients/{}/certificates/{}",
-            fixture.ctx.control_url, fixture.org_id, fixture.client_id, fixture.cert_id
-        ))
+        .delete(fixture.ctx.control_url(&format!(
+            "/organizations/{}/clients/{}/certificates/{}",
+            fixture.org_id, fixture.client_id, fixture.cert_id
+        )))
         .header("Authorization", format!("Bearer {}", fixture.session_id))
         .send()
         .await
@@ -427,10 +425,10 @@ async fn test_certificate_revocation() {
     let _ = fixture
         .ctx
         .client
-        .delete(format!(
-            "{}/v1/organizations/{}/clients/{}",
-            fixture.ctx.control_url, fixture.org_id, fixture.client_id
-        ))
+        .delete(fixture.ctx.control_url(&format!(
+            "/organizations/{}/clients/{}",
+            fixture.org_id, fixture.client_id
+        )))
         .header("Authorization", format!("Bearer {}", fixture.session_id))
         .send()
         .await;

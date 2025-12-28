@@ -60,7 +60,7 @@ async fn test_graceful_degradation_with_network_timeout() {
     // Create a JWT with a non-existent kid (will cause control lookup)
     let now = Utc::now();
     let claims = ClientClaims {
-        iss: format!("{}/v1", fixture.ctx.control_url),
+        iss: fixture.ctx.api_base_url.clone(),
         sub: format!("client:{}", fixture.client_id),
         aud: REQUIRED_AUDIENCE.to_string(),
         exp: (now + Duration::minutes(5)).timestamp(),
@@ -166,7 +166,7 @@ async fn test_partial_cache_coverage() {
     let vault2_response: CreateVaultResponse = fixture
         .ctx
         .client
-        .post(format!("{}/v1/organizations/{}/vaults", fixture.ctx.control_url, fixture.org_id))
+        .post(fixture.ctx.control_url(&format!("/organizations/{}/vaults", fixture.org_id)))
         .header("Authorization", format!("Bearer {}", fixture.session_id))
         .json(&vault2_req)
         .send()
@@ -201,10 +201,11 @@ async fn test_partial_cache_coverage() {
     let _ = fixture
         .ctx
         .client
-        .delete(format!(
-            "{}/v1/organizations/{}/vaults/{}",
-            fixture.ctx.control_url, fixture.org_id, vault2_id
-        ))
+        .delete(
+            fixture
+                .ctx
+                .control_url(&format!("/organizations/{}/vaults/{}", fixture.org_id, vault2_id)),
+        )
         .header("Authorization", format!("Bearer {}", fixture.session_id))
         .send()
         .await;
@@ -219,7 +220,7 @@ async fn test_error_handling_for_invalid_responses() {
     // Test with malformed JWT (no kid)
     let now = Utc::now();
     let claims = ClientClaims {
-        iss: format!("{}/v1", fixture.ctx.control_url),
+        iss: fixture.ctx.api_base_url.clone(),
         sub: format!("client:{}", fixture.client_id),
         aud: REQUIRED_AUDIENCE.to_string(),
         exp: (now + Duration::minutes(5)).timestamp(),
@@ -264,7 +265,6 @@ async fn test_concurrent_requests_with_mixed_cache_states() {
     for i in 0..20 {
         let jwt_clone = jwt.clone();
         let ctx = fixture.ctx.clone();
-        let engine_url = fixture.ctx.engine_url.clone();
 
         let handle = tokio::spawn(async move {
             let mut evaluation = std::collections::HashMap::new();
@@ -276,7 +276,7 @@ async fn test_concurrent_requests_with_mixed_cache_states() {
             body.insert("evaluations", vec![evaluation]);
 
             ctx.client
-                .post(format!("{}/v1/evaluate", engine_url))
+                .post(ctx.engine_url("/evaluate"))
                 .header("Authorization", format!("Bearer {}", jwt_clone))
                 .json(&body)
                 .send()

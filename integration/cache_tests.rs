@@ -50,9 +50,9 @@ async fn test_certificate_cache_hit_rate() {
         );
     }
 
-    // Check if we can get metrics from server (metrics are on internal port 9090)
+    // Check if we can get metrics from server (metrics endpoint at base URL)
     let metrics_response =
-        fixture.ctx.client.get(format!("{}/metrics", fixture.ctx.engine_mesh_url)).send().await;
+        fixture.ctx.client.get(format!("{}/metrics", fixture.ctx.api_base_url)).send().await;
 
     if let Ok(resp) = metrics_response {
         if resp.status().is_success() {
@@ -259,9 +259,9 @@ struct AuthMetrics {
     cache_misses: u64,
 }
 
-// Helper function to fetch and parse auth metrics (from internal port)
+// Helper function to fetch and parse auth metrics
 async fn get_auth_metrics(ctx: &TestContext) -> Option<AuthMetrics> {
-    let response = ctx.client.get(format!("{}/metrics", ctx.engine_mesh_url)).send().await.ok()?;
+    let response = ctx.client.get(format!("{}/metrics", ctx.api_base_url)).send().await.ok()?;
 
     if !response.status().is_success() {
         return None;

@@ -1,20 +1,20 @@
 # InferaDB Integration Tests
 
-End-to-end tests validating InferaDB Engine and Control in Kubernetes.
+End-to-end tests validating InferaDB Engine and Control against the Tailscale dev environment.
+
+## Prerequisites
+
+1. **Tailscale** - Must be installed and connected to your tailnet
+2. **Dev Environment** - Must be running via `inferadb dev start`
 
 ## Quick Commands
 
 ```bash
-# Environment Management
-make start              # Start local K8s environment
-make stop               # Stop environment (preserves data)
-make status             # Check deployment health
-make purge              # Remove all resources and data
-
-# Running Tests
+# Running Tests (requires dev environment to be running)
 make test               # Run all E2E tests
-cargo test --test integration auth_jwt    # Specific test module
-cargo test test_name -- --nocapture       # Single test with output
+make test-suite SUITE=auth_jwt    # Specific test module
+make test-single TEST=test_valid_jwt    # Single test with output
+make test-verbose       # All tests with full output
 
 # Code Quality
 make check              # Format + lint + audit
@@ -24,17 +24,32 @@ cargo +nightly fmt --all
 
 ## Test Suites
 
-| Module                         | Tests | Coverage                                       |
-| ------------------------------ | ----- | ---------------------------------------------- |
-| `auth_jwt_tests`               | 7     | JWT validation, Ed25519 signatures, expiration |
-| `vault_isolation_tests`        | 4     | Multi-tenant separation, cross-vault access    |
-| `cache_tests`                  | 4     | Hit/miss patterns, expiration, concurrent load |
-| `concurrency_tests`            | 5     | Parallel requests, race conditions             |
-| `e2e_workflows_tests`          | 2     | User journeys from registration to authz       |
-| `control_integration_tests`    | 5     | Org suspension, client deactivation            |
-| `resilience_tests`             | 6     | Service recovery, graceful degradation         |
+| Module                      | Tests | Coverage                                       |
+| --------------------------- | ----- | ---------------------------------------------- |
+| `auth_jwt_tests`            | 7     | JWT validation, Ed25519 signatures, expiration |
+| `vault_isolation_tests`     | 4     | Multi-tenant separation, cross-vault access    |
+| `cache_tests`               | 4     | Hit/miss patterns, expiration, concurrent load |
+| `concurrency_tests`         | 5     | Parallel requests, race conditions             |
+| `e2e_workflows_tests`       | 2     | User journeys from registration to authz       |
+| `control_integration_tests` | 5     | Org suspension, client deactivation            |
+| `resilience_tests`          | 6     | Service recovery, graceful degradation         |
 
 ## Architecture
+
+### URL Discovery
+
+Tests automatically discover the API URL from the local Tailscale CLI:
+
+```rust
+// Discovers tailnet from: tailscale status --json
+// Builds URL: https://inferadb-api.<tailnet>.ts.net
+
+let ctx = TestContext::new();
+ctx.control_url("/auth/register")  // -> https://inferadb-api.<tailnet>.ts.net/control/v1/auth/register
+ctx.engine_url("/evaluate")        // -> https://inferadb-api.<tailnet>.ts.net/access/v1/evaluate
+```
+
+Override with `INFERADB_API_URL` environment variable if needed.
 
 ### Test Harness
 
@@ -48,30 +63,24 @@ let jwt = fixture.generate_jwt(None, &["inferadb.check"])?;
 
 // Call engine endpoint
 let response = fixture
-    .call_engine_evaluate(&jwt, "document:1", "viewer", "user:alice")
+    .call_server_evaluate(&jwt, "document:1", "viewer", "user:alice")
     .await?;
 
 fixture.cleanup().await?;
 ```
 
+### API Endpoints
+
+| Service | Path Prefix    | Purpose                 |
+| ------- | -------------- | ----------------------- |
+| Control | `/control/v1/` | Tenant/vault management |
+| Engine  | `/access/v1/`  | Authorization endpoints |
+
 ### Environment Variables
 
-| Variable          | Default                        | Purpose               |
-| ----------------- | ------------------------------ | --------------------- |
-| `ENGINE_URL`      | `http://inferadb-engine:8080`  | Engine HTTP endpoint  |
-| `CONTROL_URL`     | `http://inferadb-control:9090` | Control HTTP endpoint |
-| `ENGINE_GRPC_URL` | `http://inferadb-engine:8081`  | Engine gRPC endpoint  |
-| `ENGINE_MESH_URL` | `http://inferadb-engine:8082`  | Engine mesh endpoint  |
-
-### K8s Services
-
-Tests run against services in `inferadb` namespace:
-
-| Service | Port | Purpose                 |
-| ------- | ---- | ----------------------- |
-| Engine  | 8080 | Authorization endpoints |
-| Control | 9090 | Tenant/vault management |
-| Metrics | 9090 | Prometheus metrics      |
+| Variable          | Default                                  | Purpose                 |
+| ----------------- | ---------------------------------------- | ----------------------- |
+| `INFERADB_API_URL`| Auto-discovered from Tailscale           | API base URL override   |
 
 ## Writing Tests
 
@@ -87,7 +96,7 @@ async fn test_vault_isolation() {
     let jwt_b = fixture.generate_jwt(Some(vault_b), &["inferadb.check"])?;
 
     // Verify isolation
-    let response = fixture.call_engine_evaluate(&jwt_a, "doc:1", "view", "user:x").await?;
+    let response = fixture.call_server_evaluate(&jwt_a, "doc:1", "view", "user:x").await?;
     assert_eq!(response.status(), StatusCode::OK);
 
     fixture.cleanup().await?;
@@ -100,8 +109,7 @@ async fn test_vault_isolation() {
 | ------------------------ | ------------------------- |
 | `create()`               | Initialize test context   |
 | `generate_jwt()`         | Create Ed25519-signed JWT |
-| `call_engine_evaluate()` | Call /v1/check endpoint   |
-| `call_control_api()`     | Call Control API          |
+| `call_server_evaluate()` | Call /access/v1/evaluate  |
 | `cleanup()`              | Teardown test resources   |
 
 ## Critical Patterns
@@ -113,14 +121,15 @@ Tests generate Ed25519 JWTs matching production format:
 ```rust
 pub fn generate_jwt(
     &self,
-    vault: Option<Uuid>,
+    vault: Option<i64>,
     scopes: &[&str],
 ) -> Result<String> {
-    let claims = Claims {
-        sub: self.user_id.to_string(),
-        vault: vault.unwrap_or(self.default_vault).to_string(),
-        scopes: scopes.iter().map(|s| s.to_string()).collect(),
+    let claims = ClientClaims {
+        sub: format!("client:{}", self.client_id),
+        vault_id: vault.unwrap_or(self.vault_id).to_string(),
+        scope: scopes.join(" "),
         exp: (Utc::now() + Duration::hours(1)).timestamp(),
+        // ... other claims
     };
     // Sign with Ed25519
 }
@@ -144,24 +153,25 @@ pub fn generate_jwt(
 fixture.cleanup().await.expect("cleanup failed");
 ```
 
-## Scripts
+## Starting the Dev Environment
 
-| Script                                       | Purpose                      |
-| -------------------------------------------- | ---------------------------- |
-| `scripts/k8s-local-start.sh`                 | Deploy stack to local K8s    |
-| `scripts/k8s-local-stop.sh`                  | Stop services, preserve data |
-| `scripts/k8s-local-purge.sh`                 | Remove all resources         |
-| `scripts/k8s-local-status.sh`                | Check deployment health      |
-| `scripts/k8s-local-run-integration-tests.sh` | Execute test suite           |
+Before running tests, start the dev environment:
+
+```bash
+inferadb dev start
+```
+
+This deploys InferaDB to a Kubernetes cluster with Tailscale ingress, making it available at `https://inferadb-api.<your-tailnet>.ts.net`.
 
 ## Troubleshooting
 
-| Issue                 | Solution                                                                              |
-| --------------------- | ------------------------------------------------------------------------------------- |
-| Services not starting | `kubectl get pods -n inferadb && kubectl logs -n inferadb deployment/inferadb-engine` |
-| Port conflicts        | `lsof -i :8080 -i :8081` or `make purge && make start`                                |
-| Tests timing out      | Check Docker RAM (4GB+ recommended), check pod logs for errors                        |
-| Connection refused    | Restart port-forwarding: `make start`                                                 |
+| Issue                      | Solution                                                       |
+| -------------------------- | -------------------------------------------------------------- |
+| Tailscale not detected     | Run `tailscale status` to verify connection                    |
+| Connection refused         | Start dev environment: `inferadb dev start`                    |
+| 404 errors                 | Check API path prefixes (/control/v1/, /access/v1/)            |
+| Certificate errors         | Tests use `danger_accept_invalid_certs(true)` for self-signed  |
+| Tests timing out           | Check dev environment health, increase timeouts                |
 
 ## Code Quality
 
