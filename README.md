@@ -1,6 +1,8 @@
-# InferaDB Integration Tests
-
-E2E test suite validating Engine and Control in Kubernetes.
+<div align="center">
+    <p><a href="https://inferadb.com"><img src=".github/inferadb.png" width="100" alt="InferaDB Logo" /></a></p>
+    <h1>InferaDB Integration Tests</h1>
+    <p>E2E test suite validating Engine and Control in Kubernetes</p>
+</div>
 
 > [!IMPORTANT]
 > Under active development. Not production-ready.
