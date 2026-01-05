@@ -1,3 +1,7 @@
+# Labeler configuration
+# See: https://github.com/actions/labeler
+# Labels must match those defined in .github/maintenance/labels.sh
+
 # Documentation
 area/docs:
   - changed-files:
@@ -18,9 +22,6 @@ area/k8s:
           - "**/k8s/**/*"
           - "**/kubernetes/**/*"
           - "**/helm/**/*"
-          - "**/*.yaml"
-          - "**/*.yml"
-          - "!.github/**/*"
 
 # Docker
 area/docker:
@@ -31,6 +32,13 @@ area/docker:
           - "**/docker-compose*.yml"
           - "**/docker-compose*.yaml"
           - "**/docker/**/*"
+
+# Terraform
+area/terraform:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "**/*.tf"
+          - "**/terraform/**/*"
 
 # Configuration
 area/config:
@@ -69,9 +77,3 @@ area/observability:
           - "**/monitoring/**/*"
           - "**/grafana/**/*"
           - "**/prometheus/**/*"
-
-# Repository label
-repo/tests:
-  - changed-files:
-      - any-glob-to-any-file:
-          - "**/*"
