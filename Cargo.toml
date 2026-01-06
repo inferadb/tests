@@ -6,7 +6,7 @@ version = "0.1.0"
 
 [dependencies]
 # HTTP client for calling APIs
-reqwest = { version = "0.12", features = ["cookies", "json"] }
+reqwest = { version = "0.13", features = ["cookies", "json"] }
 
 # Async runtime
 tokio = { version = "1.48", features = ["full"] }
