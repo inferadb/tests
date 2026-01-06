@@ -1,0 +1,80 @@
+# yaml-language-server: $schema=https://www.schemastore.org/github-workflow.json
+#
+# CI workflow for tests repository
+# Integration tests require external dependencies (FoundationDB, etc.) and are
+# run locally or in dedicated test environments, not in GitHub Actions CI.
+# This workflow provides a consistent CI Success job for branch protection rules.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Cancel in-progress runs for PRs
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  # Placeholder job - integration tests require external dependencies
+  # Tests are run locally via: make integration-test (uses docker-compose)
+  external-dependencies:
+    name: External Dependencies Required
+    runs-on: ubuntu-latest
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        with:
+          egress-policy: audit
+
+      - name: Skip CI tests
+        run: |
+          echo "This repository contains integration tests that require external dependencies."
+          echo ""
+          echo "To run tests locally:"
+          echo "  make integration-test"
+          echo ""
+          echo "This uses docker-compose to spin up required services."
+          echo "See README.md for more details."
+
+  # Overall status check - required for branch protection
+  ci-success:
+    name: CI Success
+    needs: [external-dependencies]
+    runs-on: ubuntu-latest
+    if: always()
+    permissions:
+      contents: read
+    steps:
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@20cf305ff2072d973412fa9b1e3a4f227bda3c76 # v2.14.0
+        with:
+          egress-policy: audit
+
+      - name: Check CI results
+        env:
+          EXTERNAL_DEPS_RESULT: ${{ needs.external-dependencies.result }}
+        run: |
+          echo "## CI Results"
+          echo ""
+          echo "| Check | Status |"
+          echo "|-------|--------|"
+          echo "| External Dependencies | $EXTERNAL_DEPS_RESULT (tests skipped) |"
+          echo ""
+          echo "Integration tests require external dependencies and are run locally."
+          echo "See docker-compose.integration.yml for the test environment setup."
+          echo ""
+
+          # Fail if the placeholder job failed (shouldn't happen)
+          if [[ "$EXTERNAL_DEPS_RESULT" != "success" && "$EXTERNAL_DEPS_RESULT" != "skipped" ]]; then
+            echo "Unexpected failure in CI workflow"
+            exit 1
+          fi
+
+          echo "CI checks passed!"
