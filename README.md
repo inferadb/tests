@@ -84,4 +84,9 @@ async fn test_my_feature() {
 
 ## License
 
-[Apache-2.0](LICENSE)
+Licensed under either of:
+
+- [Apache License, Version 2.0](LICENSE-APACHE)
+- [MIT License](LICENSE-MIT)
+
+at your option.
