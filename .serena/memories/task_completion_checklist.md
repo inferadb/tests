@@ -12,11 +12,13 @@ cargo +nightly fmt --all
 cargo clippy --all-targets -- -D warnings
 ```
 
-### 3. Run Tests (if environment available)
+### 3. Run Tests (if cluster available)
 ```bash
-./scripts/k8s-local-run-integration-tests.sh
-# Or run specific suite:
-cargo test --test integration auth_jwt -- --test-threads=1
+# Start cluster if needed
+inferadb dev start
+
+# Run tests
+cargo test --test integration -- --test-threads=1
 ```
 
 ### 4. Security Audit (if dependencies changed)
@@ -27,7 +29,6 @@ cargo deny check
 
 ## Quick Validation
 ```bash
-# Full check
 cargo +nightly fmt --all
 cargo clippy --all-targets -- -D warnings
 cargo audit
@@ -58,3 +59,13 @@ cargo audit
 - Add new request/response types as needed
 - Document new public functions
 - Update imports if adding test modules
+
+## Cluster Management
+
+```bash
+inferadb dev doctor    # Check prerequisites
+inferadb dev start     # Start cluster
+inferadb dev status    # Check status
+inferadb dev logs      # View logs
+inferadb dev stop      # Pause cluster
+```

@@ -14,17 +14,20 @@
 ## Quick Start
 
 ```bash
-# Setup (one-time)
-mise trust && mise install
+# Check prerequisites
+inferadb dev doctor
 
-# Start K8s stack
-./scripts/k8s-local-start.sh
+# Start development cluster
+inferadb dev start
 
 # Run tests
-./scripts/k8s-local-run-integration-tests.sh
+cargo test --test integration -- --test-threads=1
 
-# Stop (preserves data)
-./scripts/k8s-local-stop.sh
+# Stop cluster (preserves data)
+inferadb dev stop
+
+# Destroy cluster completely
+inferadb dev stop --destroy
 ```
 
 Run specific suites:
@@ -47,16 +50,19 @@ cargo test --test integration cache -- --test-threads=1
 | Management      | 5     | Org suspension, client deactivation             |
 | Resilience      | 6     | Recovery, degradation, error propagation        |
 
-## Scripts
+## CLI Commands
 
-| Script                               | Purpose                      |
-| ------------------------------------ | ---------------------------- |
-| `k8s-local-start.sh`                 | Deploy stack to local K8s    |
-| `k8s-local-stop.sh`                  | Stop services, preserve data |
-| `k8s-local-status.sh`                | Check deployment health      |
-| `k8s-local-update.sh`                | Rebuild and redeploy images  |
-| `k8s-local-purge.sh`                 | Remove all resources         |
-| `k8s-local-run-integration-tests.sh` | Execute test suite           |
+The development cluster is managed via the [InferaDB CLI](https://github.com/inferadb/cli):
+
+| Command                       | Purpose                         |
+| ----------------------------- | ------------------------------- |
+| `inferadb dev doctor`         | Check development prerequisites |
+| `inferadb dev start`          | Start local Talos cluster       |
+| `inferadb dev stop`           | Pause cluster (preserves data)  |
+| `inferadb dev stop --destroy` | Destroy cluster completely      |
+| `inferadb dev status`         | Show cluster status             |
+| `inferadb dev logs`           | View cluster logs               |
+| `inferadb dev reset`          | Reset all cluster data          |
 
 ## Environment
 
@@ -88,11 +94,12 @@ async fn test_my_feature() {
 
 ## Troubleshooting
 
-| Issue                 | Solution                                                                              |
-| --------------------- | ------------------------------------------------------------------------------------- |
-| Services not starting | `kubectl get pods -n inferadb && kubectl logs -n inferadb deployment/inferadb-engine` |
-| Port in use           | `./scripts/k8s-local-purge.sh && ./scripts/k8s-local-start.sh`                        |
-| Tests timing out      | Check Docker RAM (4GB+ recommended), check pod logs for errors                        |
+| Issue                 | Solution                                                                               |
+| --------------------- | -------------------------------------------------------------------------------------- |
+| Services not starting | `inferadb dev status` or `inferadb dev logs`                                           |
+| Port in use           | `inferadb dev stop --destroy && inferadb dev start`                                    |
+| Tests timing out      | Check Docker RAM (4GB+ recommended), run `inferadb dev logs` for errors                |
+| Prerequisites missing | Run `inferadb dev doctor` to check requirements                                        |
 
 ## Community
 

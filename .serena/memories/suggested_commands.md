@@ -1,28 +1,42 @@
 # InferaDB Integration Tests - Commands
 
 ## Prerequisites
-- Kubernetes cluster running (Docker Desktop, minikube, etc.)
-- kubectl configured
+- InferaDB CLI installed (`inferadb` command available)
+- Docker Desktop or compatible container runtime
+- Run `inferadb dev doctor` to verify all requirements
 
-## Setup
-```bash
-mise trust && mise install    # One-time tool setup
-```
+## Development Cluster Management
 
-## Kubernetes Stack Management
+The development cluster is managed via the InferaDB CLI:
+
 ```bash
-./scripts/k8s-local-start.sh   # Deploy stack to local K8s
-./scripts/k8s-local-stop.sh    # Stop services, preserve data
-./scripts/k8s-local-status.sh  # Check deployment health
-./scripts/k8s-local-update.sh  # Rebuild and redeploy images
-./scripts/k8s-local-purge.sh   # Remove all resources
+# Check prerequisites
+inferadb dev doctor
+
+# Start local Talos cluster
+inferadb dev start
+
+# Check cluster status
+inferadb dev status
+
+# View cluster logs
+inferadb dev logs
+
+# Stop cluster (preserves data)
+inferadb dev stop
+
+# Destroy cluster completely
+inferadb dev stop --destroy
+
+# Reset all cluster data
+inferadb dev reset
 ```
 
 ## Testing Commands
 
 ```bash
 # Run all integration tests
-./scripts/k8s-local-run-integration-tests.sh
+cargo test --test integration -- --test-threads=1
 
 # Run specific test suite
 cargo test --test integration auth_jwt -- --test-threads=1
@@ -59,25 +73,14 @@ cargo deny check
 ## Cleanup
 
 ```bash
-cargo clean                    # Clean build artifacts
-./scripts/k8s-local-purge.sh   # Remove all K8s resources
+cargo clean                        # Clean build artifacts
+inferadb dev stop --destroy        # Remove cluster completely
 ```
 
 ## Environment Override
 
 ```bash
-# Use custom URLs instead of K8s service discovery
+# Use custom URLs instead of cluster service discovery
 CONTROL_URL=http://localhost:9090 cargo test --test integration
 ENGINE_URL=http://localhost:8080 cargo test --test integration
-```
-
-## Unix Utilities (Darwin)
-
-```bash
-# Standard utilities
-git status
-ls -la
-grep -r "pattern" .
-find . -name "*.rs"
-kubectl get pods -n inferadb
 ```
