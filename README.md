@@ -14,17 +14,25 @@
 ## Quick Start
 
 ```bash
-make start    # Start K8s stack
-make test     # Run tests
-make stop     # Stop (preserves data)
+# Setup (one-time)
+mise trust && mise install
+
+# Start K8s stack
+./scripts/k8s-local-start.sh
+
+# Run tests
+./scripts/k8s-local-run-integration-tests.sh
+
+# Stop (preserves data)
+./scripts/k8s-local-stop.sh
 ```
 
 Run specific suites:
 
 ```bash
-cargo test --test integration auth_jwt
-cargo test --test integration vault_isolation
-cargo test --test integration cache
+cargo test --test integration auth_jwt -- --test-threads=1
+cargo test --test integration vault_isolation -- --test-threads=1
+cargo test --test integration cache -- --test-threads=1
 ```
 
 ## Test Coverage
@@ -83,7 +91,7 @@ async fn test_my_feature() {
 | Issue                 | Solution                                                                              |
 | --------------------- | ------------------------------------------------------------------------------------- |
 | Services not starting | `kubectl get pods -n inferadb && kubectl logs -n inferadb deployment/inferadb-engine` |
-| Port in use           | `make purge && make start`                                                            |
+| Port in use           | `./scripts/k8s-local-purge.sh && ./scripts/k8s-local-start.sh`                        |
 | Tests timing out      | Check Docker RAM (4GB+ recommended), check pod logs for errors                        |
 
 ## Community

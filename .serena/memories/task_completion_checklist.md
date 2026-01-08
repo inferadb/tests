@@ -4,32 +4,33 @@
 
 ### 1. Format Code
 ```bash
-make format
-# Or: mise exec -- cargo +nightly fmt --all
+cargo +nightly fmt --all
 ```
 
 ### 2. Run Linter
 ```bash
-make lint
-# Or: mise exec -- cargo clippy --all-targets -- -D warnings
+cargo clippy --all-targets -- -D warnings
 ```
 
 ### 3. Run Tests (if environment available)
 ```bash
-make test
-# Tests require: Tailscale running + dev environment deployed
+./scripts/k8s-local-run-integration-tests.sh
+# Or run specific suite:
+cargo test --test integration auth_jwt -- --test-threads=1
 ```
 
 ### 4. Security Audit (if dependencies changed)
 ```bash
-make audit
-make deny
+cargo audit
+cargo deny check
 ```
 
 ## Quick Validation
 ```bash
-# Full check (format + lint + audit)
-make check
+# Full check
+cargo +nightly fmt --all
+cargo clippy --all-targets -- -D warnings
+cargo audit
 ```
 
 ## When Adding New Tests

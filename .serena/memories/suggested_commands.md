@@ -1,71 +1,83 @@
 # InferaDB Integration Tests - Commands
 
 ## Prerequisites
-- Tailscale running: `tailscale status`
-- Dev environment: `inferadb dev start`
+- Kubernetes cluster running (Docker Desktop, minikube, etc.)
+- kubectl configured
+
+## Setup
+```bash
+mise trust && mise install    # One-time tool setup
+```
+
+## Kubernetes Stack Management
+```bash
+./scripts/k8s-local-start.sh   # Deploy stack to local K8s
+./scripts/k8s-local-stop.sh    # Stop services, preserve data
+./scripts/k8s-local-status.sh  # Check deployment health
+./scripts/k8s-local-update.sh  # Rebuild and redeploy images
+./scripts/k8s-local-purge.sh   # Remove all resources
+```
 
 ## Testing Commands
 
 ```bash
-# Run all tests (recommended)
-make test
+# Run all integration tests
+./scripts/k8s-local-run-integration-tests.sh
 
 # Run specific test suite
-make test-suite SUITE=auth_jwt
-make test-suite SUITE=vault_isolation
-make test-suite SUITE=cache
-make test-suite SUITE=concurrency
-make test-suite SUITE=e2e_workflows
-make test-suite SUITE=control_integration
-make test-suite SUITE=resilience
+cargo test --test integration auth_jwt -- --test-threads=1
+cargo test --test integration vault_isolation -- --test-threads=1
+cargo test --test integration cache -- --test-threads=1
+cargo test --test integration concurrency -- --test-threads=1
+cargo test --test integration e2e_workflows -- --test-threads=1
+cargo test --test integration control_integration -- --test-threads=1
+cargo test --test integration resilience -- --test-threads=1
 
-# Run single test
-make test-single TEST=test_valid_jwt_from_management_client
+# Run single test with output
+cargo test --test integration test_valid_jwt -- --nocapture --exact
 
 # Verbose output
-make test-verbose
-
-# Direct cargo (with mise)
-mise exec -- cargo test --test integration -- --test-threads=1
-mise exec -- cargo test --test integration auth_jwt -- --nocapture
+cargo test --test integration -- --nocapture --test-threads=1
 ```
 
 ## Code Quality
 
 ```bash
-# Full check (format + lint + audit)
-make check
+# Format code
+cargo +nightly fmt --all
 
-# Individual checks
-make format    # rustfmt (nightly)
-make lint      # clippy with -D warnings
-make audit     # cargo-audit
-make deny      # cargo-deny
+# Lint
+cargo clippy --all-targets -- -D warnings
+
+# Security audit
+cargo audit
+
+# Dependency checks
+cargo deny check
 ```
 
-## Setup & Maintenance
+## Cleanup
 
 ```bash
-# Initial setup
-make setup
-
-# Clean build artifacts
-make clean
+cargo clean                    # Clean build artifacts
+./scripts/k8s-local-purge.sh   # Remove all K8s resources
 ```
 
 ## Environment Override
 
 ```bash
-# Use custom API URL instead of Tailscale discovery
-INFERADB_API_URL=http://localhost:9090 make test
+# Use custom URLs instead of K8s service discovery
+CONTROL_URL=http://localhost:9090 cargo test --test integration
+ENGINE_URL=http://localhost:8080 cargo test --test integration
 ```
 
 ## Unix Utilities (Darwin)
 
 ```bash
-# Standard utilities work the same
+# Standard utilities
 git status
 ls -la
 grep -r "pattern" .
 find . -name "*.rs"
+kubectl get pods -n inferadb
 ```
