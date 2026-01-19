@@ -5,13 +5,43 @@
         <a href="https://discord.gg/inferadb"><img src="https://img.shields.io/badge/Discord-Join%20us-5865F2?logo=discord&logoColor=white" alt="Discord" /></a>
         <a href="#license"><img src="https://img.shields.io/badge/license-MIT%2FApache--2.0-blue.svg" alt="License" /></a>
     </p>
-    <p>E2E tests for Engine and Control in Kubernetes</p>
+    <p>E2E tests for Engine and Control with Ledger storage</p>
 </div>
 
 > [!IMPORTANT]
 > Under active development. Not production-ready.
 
 ## Quick Start
+
+There are two ways to run the E2E tests:
+
+### Option 1: Docker Compose (CI-friendly)
+
+Use this for CI pipelines or when you don't have a K8s cluster:
+
+```bash
+# From the meta-repository root
+docker compose -f docker-compose.e2e.yml up -d
+
+# Run tests
+cd tests
+cargo test --test integration -- --test-threads=1
+
+# Stop and cleanup
+docker compose -f docker-compose.e2e.yml down -v
+```
+
+Or use the helper script:
+
+```bash
+./run-e2e.sh              # Run all tests
+./run-e2e.sh --keep       # Keep containers running after tests
+./run-e2e.sh cache        # Run only cache-related tests
+```
+
+### Option 2: Kubernetes Development Cluster
+
+Use this for development with the full Tailscale-based setup:
 
 ```bash
 # Check prerequisites
@@ -36,19 +66,21 @@ Run specific suites:
 cargo test --test integration auth_jwt -- --test-threads=1
 cargo test --test integration vault_isolation -- --test-threads=1
 cargo test --test integration cache -- --test-threads=1
+cargo test --test integration ledger_cache_invalidation -- --test-threads=1
 ```
 
 ## Test Coverage
 
-| Category        | Tests | Scope                                           |
-| --------------- | ----- | ----------------------------------------------- |
-| Authentication  | 7     | JWT validation, Ed25519, expiration, scopes     |
-| Vault Isolation | 4     | Multi-tenant separation, cross-vault prevention |
-| Cache Behavior  | 4     | Hit/miss patterns, expiration, concurrency      |
-| Concurrency     | 5     | Parallel requests, race conditions              |
-| E2E Workflows   | 2     | Registration → authorization flows              |
-| Management      | 5     | Org suspension, client deactivation             |
-| Resilience      | 6     | Recovery, degradation, error propagation        |
+| Category                  | Tests | Scope                                           |
+| ------------------------- | ----- | ----------------------------------------------- |
+| Authentication            | 7     | JWT validation, Ed25519, expiration, scopes     |
+| Vault Isolation           | 4     | Multi-tenant separation, cross-vault prevention |
+| Cache Behavior            | 4     | Hit/miss patterns, expiration, concurrency      |
+| Ledger Cache Invalidation | 4     | Ledger watch, certificate revocation, writes    |
+| Concurrency               | 5     | Parallel requests, race conditions              |
+| E2E Workflows             | 2     | Registration → authorization flows              |
+| Management                | 5     | Org suspension, client deactivation             |
+| Resilience                | 6     | Recovery, degradation, error propagation        |
 
 ## CLI Commands
 

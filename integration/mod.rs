@@ -28,6 +28,7 @@ mod cache_tests;
 mod concurrency_tests;
 mod control_integration_tests;
 mod e2e_workflows_tests;
+mod ledger_cache_invalidation_tests;
 mod resilience_tests;
 mod vault_isolation_tests;
 
@@ -145,11 +146,10 @@ pub async fn validate_environment() -> Result<()> {
 
     // Check health endpoint (routed to Control via ingress at /healthz)
     let health_url = format!("{}/healthz", base_url);
-    let response = client
-        .get(&health_url)
-        .send()
-        .await
-        .context(format!("Failed to connect to API at {}. Is the dev environment running? Run: inferadb dev start", health_url))?;
+    let response = client.get(&health_url).send().await.context(format!(
+        "Failed to connect to API at {}. Is the dev environment running? Run: inferadb dev start",
+        health_url
+    ))?;
 
     if !response.status().is_success() {
         anyhow::bail!(
