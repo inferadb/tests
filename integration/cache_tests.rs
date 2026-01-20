@@ -54,48 +54,47 @@ async fn test_certificate_cache_hit_rate() {
     let metrics_response =
         fixture.ctx.client.get(format!("{}/metrics", fixture.ctx.api_base_url)).send().await;
 
-    if let Ok(resp) = metrics_response {
-        if resp.status().is_success() {
-            if let Ok(metrics_text) = resp.text().await {
-                println!("✓ Server metrics available");
+    if let Ok(resp) = metrics_response
+        && resp.status().is_success()
+        && let Ok(metrics_text) = resp.text().await
+    {
+        println!("✓ Server metrics available");
 
-                // Look for cache-related metrics
-                for line in metrics_text.lines() {
-                    if line.contains("infera_auth_cache") {
-                        println!("  {}", line);
-                    }
-                }
+        // Look for cache-related metrics
+        for line in metrics_text.lines() {
+            if line.contains("infera_auth_cache") {
+                println!("  {}", line);
+            }
+        }
 
-                // Parse cache hit/miss metrics if available
-                let hits = metrics_text
-                    .lines()
-                    .find(|l| l.starts_with("infera_auth_cache_hits_total"))
-                    .and_then(|l| l.split_whitespace().nth(1))
-                    .and_then(|v| v.parse::<f64>().ok())
-                    .unwrap_or(0.0);
+        // Parse cache hit/miss metrics if available
+        let hits = metrics_text
+            .lines()
+            .find(|l| l.starts_with("infera_auth_cache_hits_total"))
+            .and_then(|l| l.split_whitespace().nth(1))
+            .and_then(|v| v.parse::<f64>().ok())
+            .unwrap_or(0.0);
 
-                let misses = metrics_text
-                    .lines()
-                    .find(|l| l.starts_with("infera_auth_cache_misses_total"))
-                    .and_then(|l| l.split_whitespace().nth(1))
-                    .and_then(|v| v.parse::<f64>().ok())
-                    .unwrap_or(0.0);
+        let misses = metrics_text
+            .lines()
+            .find(|l| l.starts_with("infera_auth_cache_misses_total"))
+            .and_then(|l| l.split_whitespace().nth(1))
+            .and_then(|v| v.parse::<f64>().ok())
+            .unwrap_or(0.0);
 
-                if hits + misses > 0.0 {
-                    let hit_rate = hits / (hits + misses) * 100.0;
-                    println!(
-                        "✓ Cache hit rate: {:.1}% (hits: {}, misses: {})",
-                        hit_rate, hits as u64, misses as u64
-                    );
+        if hits + misses > 0.0 {
+            let hit_rate = hits / (hits + misses) * 100.0;
+            println!(
+                "✓ Cache hit rate: {:.1}% (hits: {}, misses: {})",
+                hit_rate, hits as u64, misses as u64
+            );
 
-                    // Cache hit rate should be >90% for repeated requests
-                    if hit_rate < 90.0 {
-                        eprintln!(
-                            "Warning: Cache hit rate is low ({:.1}%) - expected >90%",
-                            hit_rate
-                        );
-                    }
-                }
+            // Cache hit rate should be >90% for repeated requests
+            if hit_rate < 90.0 {
+                eprintln!(
+                    "Warning: Cache hit rate is low ({:.1}%) - expected >90%",
+                    hit_rate
+                );
             }
         }
     }

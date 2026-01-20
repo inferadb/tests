@@ -1,3 +1,5 @@
+#![deny(unsafe_code)]
+
 // Integration tests for InferaDB engine-control authentication
 //
 // These tests validate end-to-end authentication flows between the engine
