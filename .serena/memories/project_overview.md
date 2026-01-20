@@ -4,7 +4,7 @@
 E2E test suite validating InferaDB Engine and Control services in Kubernetes. Tests run against a Tailscale-based dev environment.
 
 ## Tech Stack
-- **Language**: Rust 1.85 (2021 edition)
+- **Language**: Rust 1.92 (2021 edition)
 - **Runtime**: Tokio async runtime
 - **HTTP Client**: reqwest (with cookies, JSON support)
 - **JWT**: jsonwebtoken (EdDSA/Ed25519)

@@ -44,7 +44,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-action@7ac8906b4da87dbf44ef2c5cc52b4e736c91b7f6 # master
         with:
-          toolchain: "1.85"
+          toolchain: "1.92"
           components: clippy
 
       - name: Cache Rust dependencies
@@ -129,7 +129,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-action@7ac8906b4da87dbf44ef2c5cc52b4e736c91b7f6 # master
         with:
-          toolchain: "1.85"
+          toolchain: "1.92"
 
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@9d47c6ad4b02e050fd481d890b2ea34778fd09d6 # v2.7.8
