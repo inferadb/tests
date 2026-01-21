@@ -32,6 +32,7 @@ mod control_integration_tests;
 mod e2e_workflows_tests;
 mod ledger_cache_invalidation_tests;
 mod resilience_tests;
+mod token_lifecycle_tests;
 mod vault_isolation_tests;
 
 /// Generate a random Ed25519 signing key

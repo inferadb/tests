@@ -91,10 +91,7 @@ async fn test_certificate_cache_hit_rate() {
 
             // Cache hit rate should be >90% for repeated requests
             if hit_rate < 90.0 {
-                eprintln!(
-                    "Warning: Cache hit rate is low ({:.1}%) - expected >90%",
-                    hit_rate
-                );
+                eprintln!("Warning: Cache hit rate is low ({:.1}%) - expected >90%", hit_rate);
             }
         }
     }
