@@ -9,6 +9,9 @@
 // Tests run against a Tailscale-based dev environment deployed via:
 //   inferadb dev start
 //
+// Run with:
+//   cargo test --features integration-tests -- --test-threads=1
+//
 // The test infrastructure automatically discovers the API URL from
 // the local Tailscale CLI.
 

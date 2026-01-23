@@ -45,7 +45,12 @@ assert_matches = "1.5"
 [dev-dependencies]
 # No additional dev dependencies needed
 
+[features]
+# Testing (not for production use)
+integration-tests = []
+
 [[test]]
 harness = true
 name = "integration"
 path = "integration/mod.rs"
+required-features = ["integration-tests"]
