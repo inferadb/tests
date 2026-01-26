@@ -17,7 +17,7 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
 # UUID support
-uuid = { version = "1.19", features = ["serde", "v4"] }
+uuid = { version = "1.20", features = ["serde", "v4"] }
 
 # JWT generation for tests (match server configuration)
 jsonwebtoken = { version = "10.2", default-features = false, features = [
